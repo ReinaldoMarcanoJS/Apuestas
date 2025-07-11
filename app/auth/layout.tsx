@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 
 const geistSans = Geist({
@@ -14,11 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Apuestas Social",
-  description: "Red social para apostadores y predicciones de fútbol",
+  title: "Autenticación - Apuestas Social",
+  description: "Inicia sesión o regístrate en Apuestas Social",
 };
 
-export default function RootLayout({
+export default function AuthLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -34,9 +34,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <div className="min-h-screen bg-background flex items-center justify-center">
+            {children}
+          </div>
         </ThemeProvider>
       </body>
     </html>
   );
-}
+} 
