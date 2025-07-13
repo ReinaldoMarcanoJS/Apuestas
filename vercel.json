@@ -1,0 +1,8 @@
+{
+    "crons": [
+      {
+        "path": "/api/popular-matches",
+        "schedule": "0 6 * * *"
+      }
+    ]
+  }
