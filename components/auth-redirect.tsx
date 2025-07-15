@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 import { ensureUserProfile } from '@/lib/supabase/auth-helpers'
+import type { Session } from '@supabase/supabase-js'
 
 export function AuthRedirect() {
   const router = useRouter()
@@ -11,11 +12,11 @@ export function AuthRedirect() {
   const supabase = createClient()
 
   useEffect(() => {
-    const handleAuthChange = async (event: string, session: any) => {
+    const handleAuthChange = async (event: string, session: Session | null) => {
       if (event === 'SIGNED_IN' && session?.user) {
         try {
           // Asegurar que el usuario tenga perfil
-          await ensureUserProfile(session.user.id, session.user.email)
+          await ensureUserProfile(session.user.id, session.user.email || '')
           // Redirigir al feed si está en una página de auth
           if (pathname.startsWith('/auth/')) {
             router.push('/feed')

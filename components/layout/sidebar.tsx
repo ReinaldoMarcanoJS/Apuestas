@@ -25,7 +25,7 @@ import { PopularMatches } from './popular-matches'
 import { useRouter } from 'next/navigation'
 
 export function Sidebar() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [loadingHref, setLoadingHref] = useState<string | null>(null)
@@ -81,6 +81,25 @@ export function Sidebar() {
 
   if (!user) {
     return null
+  }
+
+  if (!profile) {
+    // Skeleton de carga simple
+    return (
+      <aside className="p-4 bg-white rounded-lg shadow space-y-4 animate-fade-in">
+        <div className="flex items-center gap-3 animate-pulse">
+          <div className="h-12 w-12 rounded-full bg-gray-300" />
+          <div className="flex-1 h-5 bg-gray-300 rounded" />
+        </div>
+        <div className="h-4 bg-gray-200 rounded w-3/4 mt-2 animate-pulse" />
+        <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
+        <div className="flex flex-col gap-2 mt-4">
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+        </div>
+      </aside>
+    )
   }
 
   const navigationItems = [

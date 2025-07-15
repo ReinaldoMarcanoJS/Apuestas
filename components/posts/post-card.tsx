@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Heart, MessageCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react'
-import { likePost, unlikePost, isPostLiked, deletePost } from '@/lib/supabase/posts'
+import { likePost, unlikePost, isPostLiked, deletePost, getPost, getPostComments, addPostComment, getPostLikes } from '@/lib/supabase/posts'
 import Link from 'next/link'
 import {
   DropdownMenu,
@@ -16,6 +16,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { CommentModal } from './comment-modal'
+import { LikesModal } from './likes-modal'
+
+interface CommentUser {
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+}
+
+interface Comment {
+  id: string;
+  user: CommentUser;
+  content: string;
+  created_at: string;
+}
+
+interface LikeUser {
+  id: string;
+  user: CommentUser;
+}
 
 interface PostCardProps {
   post: PostWithProfile
@@ -25,15 +45,28 @@ interface PostCardProps {
 
 export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(false)
-  const [likesCount, setLikesCount] = useState(post.likes_count || 0)
+  const [likesCount, setLikesCount] = useState(post._count?.post_likes || 0)
   const [isLoading, setIsLoading] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false)
+  const [comments, setComments] = useState<Comment[]>([])
+  const [isLikesModalOpen, setIsLikesModalOpen] = useState(false)
+  const [likesUsers, setLikesUsers] = useState<LikeUser[]>([])
+  const [showInlineCommentInput, setShowInlineCommentInput] = useState(false)
+  const [inlineComment, setInlineComment] = useState("")
+  const [inlineLoading, setInlineLoading] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
-    checkCurrentUser()
-    checkLikeStatus()
-  }, [post.id])
+    checkCurrentUser();
+  }, [post.id]);
+
+  useEffect(() => {
+    if (currentUserId) {
+      checkLikeStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, post.id]);
 
   const checkCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -47,21 +80,30 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
     setIsLiked(liked)
   }
 
+  const reloadPost = async () => {
+    const freshPost = await getPost(post.id);
+    if (freshPost) {
+      setLikesCount(freshPost._count?.post_likes || 0);
+      // Si quieres actualizar más campos, agrégalos aquí
+    }
+  };
+
   const handleLike = async () => {
     if (!currentUserId) return
 
     setIsLoading(true)
-    
     try {
       if (isLiked) {
-        await unlikePost(post.id, currentUserId)
-        setLikesCount(prev => prev - 1)
+        setLikesCount(prev => prev - 1); // Actualiza localmente
         setIsLiked(false)
+        await unlikePost(post.id, currentUserId)
       } else {
-        await likePost(post.id, currentUserId)
-        setLikesCount(prev => prev + 1)
+        setLikesCount(prev => prev + 1); // Actualiza localmente
         setIsLiked(true)
+        await likePost(post, currentUserId)
       }
+      // Sincroniza con la base de datos en segundo plano
+      reloadPost();
     } catch (error) {
       console.error('Error toggling like:', error)
     } finally {
@@ -105,6 +147,77 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
   }
 
   const isOwnPost = currentUserId === post.user_id
+
+  // Simulación: cargar comentarios (aquí deberías llamar a tu API real)
+  const loadComments = async () => {
+    const data = await getPostComments(post.id)
+    const normalized: Comment[] = (data || []).map((c: any) => ({
+      ...c,
+      user: {
+        username: c.user?.username,
+        display_name: c.user?.display_name || c.user?.username,
+        avatar_url: c.user?.avatar_url
+      }
+    }))
+    setComments(normalized)
+  }
+
+  const handleOpenComments = async () => {
+    await loadComments()
+    setIsCommentModalOpen(true)
+  }
+
+  const handleAddComment = async (content: string) => {
+    if (!currentUserId) return
+    const newComment = await addPostComment(post.id, currentUserId, content)
+    if (newComment) {
+      const normalized: Comment = {
+        ...newComment,
+        user: {
+          username: newComment.user?.username,
+          display_name: newComment.user?.display_name || newComment.user?.username,
+          avatar_url: newComment.user?.avatar_url
+        }
+      }
+      setComments(prev => [...prev, normalized])
+    }
+  }
+
+  const handleOpenLikes = async (e: React.MouseEvent<HTMLSpanElement, MouseEvent> | { stopPropagation: () => void }) => {
+    e.stopPropagation()
+    const data = await getPostLikes(post.id)
+    const normalized: LikeUser[] = (data || []).map((l: any) => ({
+      ...l,
+      user: {
+        username: Array.isArray(l.user) ? l.user[0]?.username : l.user?.username,
+        display_name: Array.isArray(l.user) ? l.user[0]?.display_name || l.user[0]?.username : l.user?.display_name || l.user?.username,
+        avatar_url: Array.isArray(l.user) ? l.user[0]?.avatar_url : l.user?.avatar_url
+      }
+    }))
+    setLikesUsers(normalized)
+    setIsLikesModalOpen(true)
+  }
+
+  const handleOpenCommentInput = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowInlineCommentInput(true)
+  }
+
+  const handleInlineCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inlineComment.trim() || !currentUserId) return
+    setInlineLoading(true)
+    const newComment = await addPostComment(post.id, currentUserId, inlineComment)
+    if (newComment) {
+      setComments(prev => [...prev, {
+        ...newComment,
+        user: Array.isArray(newComment.user) ? newComment.user[0] : newComment.user
+      }])
+      setInlineComment("")
+      setShowInlineCommentInput(false)
+    }
+    setInlineLoading(false)
+  }
 
   return (
     <Card className="w-full">
@@ -151,7 +264,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4" onClick={handleOpenComments} style={{ cursor: 'pointer' }}>
         {/* Content */}
         <div className="space-y-3">
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
@@ -175,7 +288,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1">
               <Heart className="h-4 w-4" />
-              <span>{likesCount}</span>
+              <span onClick={handleOpenLikes} className="hover:underline cursor-pointer">{likesCount}</span>
             </div>
             <div className="flex items-center space-x-1">
               <MessageCircle className="h-4 w-4" />
@@ -185,7 +298,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
         </div>
 
         {/* Actions */}
-        <div className="flex space-x-2 pt-2 border-t">
+        <div className="flex space-x-2 pt-2 border-t" onClick={e => e.stopPropagation()}>
           <Button
             variant={isLiked ? "default" : "ghost"}
             size="sm"
@@ -196,13 +309,83 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
             <Heart className={`h-4 w-4 mr-2 ${isLiked ? 'fill-current' : ''}`} />
             {isLiked ? 'Me gusta' : 'Me gusta'}
           </Button>
-          
-          <Button variant="ghost" size="sm" className="flex-1">
+          <Button variant="ghost" size="sm" className="flex-1" onClick={handleOpenCommentInput}>
             <MessageCircle className="h-4 w-4 mr-2" />
             Comentar
           </Button>
         </div>
+        {showInlineCommentInput && (
+          <form onSubmit={handleInlineCommentSubmit} className="flex items-center gap-2 mt-2">
+            <input
+              type="text"
+              value={inlineComment}
+              onChange={e => setInlineComment(e.target.value)}
+              placeholder="Escribe un comentario..."
+              className="flex-1 border rounded px-3 py-2 text-sm"
+              maxLength={300}
+              autoFocus
+              disabled={inlineLoading}
+            />
+            <Button type="submit" size="sm" disabled={inlineLoading || !inlineComment.trim()}>
+              Comentar
+            </Button>
+          </form>
+        )}
+        {/* Lista de últimos comentarios */}
+        {comments.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {comments.slice(-2).map((comment, idx) => (
+              <div key={comment.id} className="flex items-start space-x-2 text-sm">
+                <Avatar className="h-7 w-7">
+                  <AvatarImage src={comment.user?.avatar_url || ''} alt={comment.user?.username || ''} />
+                  <AvatarFallback>{comment.user?.username?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <span className="font-semibold">{comment.user?.username || 'Usuario'}</span>{' '}
+                  <span className="text-muted-foreground">{comment.content}</span>
+                  <div className="text-xs text-muted-foreground">{new Date(comment.created_at).toLocaleString('es-ES')}</div>
+                </div>
+              </div>
+            ))}
+            {comments.length > 2 && (
+              <button
+                className="text-xs text-blue-600 hover:underline mt-1"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  await loadComments();
+                  setIsCommentModalOpen(true);
+                }}
+              >
+                Ver todos los comentarios
+              </button>
+            )}
+          </div>
+        )}
       </CardContent>
+      <CommentModal
+        open={isCommentModalOpen}
+        onClose={() => setIsCommentModalOpen(false)}
+        comments={comments}
+        onAddComment={handleAddComment}
+        postInfo={{
+          id: post.id,
+          user: {
+            username: post.profiles.username,
+            display_name: post.profiles.display_name,
+            avatar_url: post.profiles.avatar_url,
+          },
+          created_at: post.created_at,
+          content: post.content,
+          likes: likesCount,
+          comments: comments.length,
+        }}
+        onShowLikes={() => handleOpenLikes({ stopPropagation: () => {} } as any)}
+      />
+      <LikesModal
+        open={isLikesModalOpen}
+        onClose={() => setIsLikesModalOpen(false)}
+        likes={likesUsers}
+      />
     </Card>
   )
 } 

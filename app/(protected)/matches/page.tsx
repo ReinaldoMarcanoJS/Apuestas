@@ -30,13 +30,16 @@ interface Channel {
 }
 
 interface Match {
-  LocalTeam: Team;
-  AwayTeam: Team;
-  Competition: Competition;
-  Date: string;
-  DateEnd?: string;
-  Channels: Channel[];
-  Id: number;
+  id: string;
+  home_team: string;
+  away_team: string;
+  league: string;
+  match_date: string;
+  status: string;
+  home_score: number | null;
+  away_score: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 type Matches = Match[];
@@ -93,57 +96,59 @@ export default function MatchesPage() {
       ) : (
         <ul className="space-y-6">
           {partidos.map((p) => (
-            <li key={p.Id} className="flex flex-col gap-2 border-b pb-4">
+            <li key={p.id} className="flex flex-col gap-2 border-b pb-4">
               <div className="flex justify-between items-center">
                 <span>
-                  {p.LocalTeam.Name} vs {p.AwayTeam.Name}
+                  {p.home_team} vs {p.away_team}
                 </span>
                 <span className="text-xs text-gray-500">
-                  {new Date(p.Date).toLocaleString()}
+                  {new Date(p.match_date).toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs text-gray-600">
-                <span>{p.Competition.Name}</span>
+                <span>{p.league}</span>
               </div>
               <div className="flex flex-wrap gap-2 text-xs mt-1">
-                {p.Channels.map((ch) => (
+                {/* Assuming p.Channels is not directly available in the Match interface,
+                    but if it were, you would map it here. For now, it's commented out. */}
+                {/* {p.Channels.map((ch) => (
                   <span key={ch.Id} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
                     {ch.Name}
                   </span>
-                ))}
+                ))} */}
               </div>
-              <form onSubmit={(e) => handleSubmit(e, p.Id)} className="flex gap-2 items-center mt-1">
+              <form onSubmit={(e) => handleSubmit(e, parseInt(p.id, 10))} className="flex gap-2 items-center mt-1">
                 <label>
                   <input
                     type="radio"
-                    name={`prediccion-${p.Id}`}
+                    name={`prediccion-${p.id}`}
                     value="local"
-                    checked={predicciones[p.Id] === "local"}
-                    onChange={() => handlePrediccion(p.Id, "local")}
-                  /> {p.LocalTeam.Name}
+                    checked={predicciones[parseInt(p.id, 10)] === "local"}
+                    onChange={() => handlePrediccion(parseInt(p.id, 10), "local")}
+                  /> {p.home_team}
                 </label>
                 <label>
                   <input
                     type="radio"
-                    name={`prediccion-${p.Id}`}
+                    name={`prediccion-${p.id}`}
                     value="empate"
-                    checked={predicciones[p.Id] === "empate"}
-                    onChange={() => handlePrediccion(p.Id, "empate")}
+                    checked={predicciones[parseInt(p.id, 10)] === "empate"}
+                    onChange={() => handlePrediccion(parseInt(p.id, 10), "empate")}
                   /> Empate
                 </label>
                 <label>
                   <input
                     type="radio"
-                    name={`prediccion-${p.Id}`}
+                    name={`prediccion-${p.id}`}
                     value="visitante"
-                    checked={predicciones[p.Id] === "visitante"}
-                    onChange={() => handlePrediccion(p.Id, "visitante")}
-                  /> {p.AwayTeam.Name}
+                    checked={predicciones[parseInt(p.id, 10)] === "visitante"}
+                    onChange={() => handlePrediccion(parseInt(p.id, 10), "visitante")}
+                  /> {p.away_team}
                 </label>
                 <button
                   className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
                   type="submit"
-                  disabled={!predicciones[p.Id]}
+                  disabled={!predicciones[parseInt(p.id, 10)]}
                 >
                   Votar
                 </button>

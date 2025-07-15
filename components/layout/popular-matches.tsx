@@ -39,6 +39,17 @@ interface Match {
   Id: number;
 }
 
+interface PopularMatch {
+  id: string;
+  home_team: string;
+  away_team: string;
+  league: string;
+  match_date: string;
+  status: string;
+  home_score: number | null;
+  away_score: number | null;
+}
+
 type Matches = Match[];
 
 export function PopularMatches() {

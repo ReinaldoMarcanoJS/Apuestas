@@ -27,6 +27,7 @@ export function PostsFeed({ userId, showCreatePost = true }: PostsFeedProps) {
         newPosts = await getPostsByUser(userId, 20, offset)
       } else {
         newPosts = await getPosts(20, offset)
+        console.log( "newPosts",await newPosts);
       }
       
       if (append) {
