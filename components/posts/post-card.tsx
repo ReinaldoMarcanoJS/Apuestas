@@ -57,6 +57,9 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
   const [inlineLoading, setInlineLoading] = useState(false)
   const supabase = createClient()
 
+  // Estado para el carrusel de imágenes
+  const [currentImg, setCurrentImg] = useState(0)
+
   useEffect(() => {
     checkCurrentUser();
   }, [post.id]);
@@ -269,16 +272,47 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
         <div className="space-y-3">
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
           
-          {post.image_url && (
-            <div className="rounded-lg overflow-hidden">
+          {/* Imagen o carrusel de imágenes */}
+          {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
+            <div
+              className="w-full bg-gray-100 rounded-lg overflow-hidden flex flex-col items-center justify-center relative cursor-pointer"
+              style={{ minHeight: '220px', maxHeight: '400px' }}
+              onClick={handleOpenComments}
+            >
               <img
-                src={post.image_url}
-                alt="Post image"
-                className="w-full h-auto max-h-96 object-cover"
+                src={post.image_urls[currentImg]}
+                alt={`Imagen ${currentImg + 1} de la publicación`}
+                className="max-w-full h-auto bg-white object-contain"
+                style={{ display: 'block', background: 'white', maxHeight: '400px' }}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none'
                 }}
               />
+              {post.image_urls.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
+                    onClick={e => { e.stopPropagation(); setCurrentImg((prev) => prev === 0 ? post.image_urls.length - 1 : prev - 1) }}
+                    aria-label="Anterior"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
+                    onClick={e => { e.stopPropagation(); setCurrentImg((prev) => prev === post.image_urls.length - 1 ? 0 : prev + 1) }}
+                    aria-label="Siguiente"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </button>
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                    {post.image_urls.map((_, idx) => (
+                      <span key={idx} className={`w-2 h-2 rounded-full ${idx === currentImg ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -380,6 +414,8 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
           comments: comments.length,
         }}
         onShowLikes={() => handleOpenLikes({ stopPropagation: () => {} } as any)}
+        imageUrls={post.image_urls}
+        initialImageIndex={currentImg}
       />
       <LikesModal
         open={isLikesModalOpen}

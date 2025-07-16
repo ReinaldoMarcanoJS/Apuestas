@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface Team {
   Competitions: any[];
@@ -16,7 +17,7 @@ interface Sport {
 }
 
 interface Competition {
-  Sport: Sport;
+  Sport: any;
   Id: number;
   Name: string;
   Image: string;
@@ -30,16 +31,13 @@ interface Channel {
 }
 
 interface Match {
-  id: string;
-  home_team: string;
-  away_team: string;
-  league: string;
-  match_date: string;
-  status: string;
-  home_score: number | null;
-  away_score: number | null;
-  created_at: string;
-  updated_at: string;
+  LocalTeam: Team;
+  AwayTeam: Team;
+  Competition: Competition;
+  Date: string;
+  DateEnd?: string;
+  Channels: Channel[];
+  Id: number;
 }
 
 type Matches = Match[];
@@ -68,7 +66,7 @@ export default function MatchesPage() {
 
   const handleSubmit = (e: React.FormEvent, id: number) => {
     e.preventDefault();
-    alert(`Tu predicción para el partido ${id} fue: ${predicciones[id]}`);
+    // Ya no mostramos alert, solo se resalta el botón seleccionado
   };
 
   return (
@@ -96,62 +94,65 @@ export default function MatchesPage() {
       ) : (
         <ul className="space-y-6">
           {partidos.map((p) => (
-            <li key={p.id} className="flex flex-col gap-2 border-b pb-4">
+            <li key={p.Id} className="flex flex-col gap-2 border-b pb-4">
               <div className="flex justify-between items-center">
                 <span>
-                  {p.home_team} vs {p.away_team}
+                  {p.LocalTeam.Name} vs {p.AwayTeam.Name}
                 </span>
                 <span className="text-xs text-gray-500">
-                  {new Date(p.match_date).toLocaleString()}
+                  {new Date(p.Date).toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs text-gray-600">
-                <span>{p.league}</span>
+                <span>{p.Competition.Name}</span>
               </div>
               <div className="flex flex-wrap gap-2 text-xs mt-1">
-                {/* Assuming p.Channels is not directly available in the Match interface,
-                    but if it were, you would map it here. For now, it's commented out. */}
-                {/* {p.Channels.map((ch) => (
+                {p.Channels && p.Channels.map((ch) => (
                   <span key={ch.Id} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
                     {ch.Name}
                   </span>
-                ))} */}
+                ))}
               </div>
-              <form onSubmit={(e) => handleSubmit(e, parseInt(p.id, 10))} className="flex gap-2 items-center mt-1">
-                <label>
-                  <input
-                    type="radio"
-                    name={`prediccion-${p.id}`}
-                    value="local"
-                    checked={predicciones[parseInt(p.id, 10)] === "local"}
-                    onChange={() => handlePrediccion(parseInt(p.id, 10), "local")}
-                  /> {p.home_team}
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name={`prediccion-${p.id}`}
-                    value="empate"
-                    checked={predicciones[parseInt(p.id, 10)] === "empate"}
-                    onChange={() => handlePrediccion(parseInt(p.id, 10), "empate")}
-                  /> Empate
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name={`prediccion-${p.id}`}
-                    value="visitante"
-                    checked={predicciones[parseInt(p.id, 10)] === "visitante"}
-                    onChange={() => handlePrediccion(parseInt(p.id, 10), "visitante")}
-                  /> {p.away_team}
-                </label>
-                <button
-                  className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
-                  type="submit"
-                  disabled={!predicciones[parseInt(p.id, 10)]}
+              <form className="flex gap-2 items-center mt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  className={
+                    `transition-all border-2 shadow-none ` +
+                    (predicciones[p.Id] === "local"
+                      ? "bg-gray-200 text-blue-700 font-bold"
+                      : " bg-white text-gray-800 hover:bg-gray-100")
+                  }
+                  onClick={() => { handlePrediccion(p.Id, "local"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
                 >
-                  Votar
-                </button>
+                  {p.LocalTeam.Name}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className={
+                    `transition-all border-2 shadow-none ` +
+                    (predicciones[p.Id] === "empate"
+                      ? "bg-black text-white font-bold"
+                      : " bg-black text-white/70 hover:text-white")
+                  }
+                  onClick={() => { handlePrediccion(p.Id, "empate"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
+                >
+                  Empate
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className={
+                    `transition-all border-2 shadow-none ` +
+                    (predicciones[p.Id] === "visitante"
+                      ? "bg-gray-200 text-blue-700 font-bold"
+                      : "bg-gray-100 text-gray-800 hover:bg-gray-200")
+                  }
+                  onClick={() => { handlePrediccion(p.Id, "visitante"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
+                >
+                  {p.AwayTeam.Name}
+                </Button>
               </form>
             </li>
           ))}

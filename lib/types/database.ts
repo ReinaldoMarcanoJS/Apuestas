@@ -35,7 +35,7 @@ export interface Database {
           id: string
           user_id: string
           content: string
-          image_url: string | null
+          image_urls: string[]
           likes_count: number
           created_at: string
           updated_at: string
@@ -44,7 +44,7 @@ export interface Database {
           id?: string
           user_id: string
           content: string
-          image_url?: string | null
+          image_urls?: string[]
           likes_count?: number
           created_at?: string
           updated_at?: string
@@ -53,7 +53,7 @@ export interface Database {
           id?: string
           user_id?: string
           content?: string
-          image_url?: string | null
+          image_urls?: string[]
           likes_count?: number
           created_at?: string
           updated_at?: string

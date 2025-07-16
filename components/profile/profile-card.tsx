@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Edit, Trophy, Target, Users, Calendar } from 'lucide-react'
 import Link from 'next/link'
+import { EditProfileModal } from './edit-profile-modal'
 
 interface ProfileCardProps {
   profile: ProfileWithStats | Profile
@@ -21,6 +22,8 @@ export function ProfileCard({ profile, isOwnProfile = false, onEdit }: ProfileCa
   const [followersCount, setFollowersCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [profileData, setProfileData] = useState(profile)
   const supabase = createClient()
 
   useEffect(() => {
@@ -110,27 +113,37 @@ export function ProfileCard({ profile, isOwnProfile = false, onEdit }: ProfileCa
     })
   }
 
+  // Recargar perfil desde Supabase
+  const reloadProfile = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', profile.id)
+      .single()
+    if (data) setProfileData(data)
+  }
+
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader className="relative">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-4">
             <Avatar className="h-20 w-20">
-              <AvatarImage src={profile.avatar_url || ''} alt={profile.display_name} />
+              <AvatarImage src={profileData.avatar_url || ''} alt={profileData.display_name} />
               <AvatarFallback className="text-lg">
-                {profile.display_name.charAt(0).toUpperCase()}
+                {profileData.display_name.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div>
-              <h1 className="text-2xl font-bold">{profile.display_name}</h1>
-              <p className="text-muted-foreground">@{profile.username}</p>
+              <h1 className="text-2xl font-bold">{profileData.display_name}</h1>
+              <p className="text-muted-foreground">@{profileData.username}</p>
               <p className="text-sm text-muted-foreground">
-                Miembro desde {formatDate(profile.created_at)}
+                Miembro desde {formatDate(profileData.created_at)}
               </p>
             </div>
           </div>
           {currentUserId === profile.id ? (
-            <Button onClick={onEdit} variant="outline" size="sm">
+            <Button onClick={() => setShowEditModal(true)} variant="outline" size="sm">
               <Edit className="h-4 w-4 mr-2" />
               Editar
             </Button>
@@ -148,10 +161,10 @@ export function ProfileCard({ profile, isOwnProfile = false, onEdit }: ProfileCa
 
       <CardContent className="space-y-6">
         {/* Bio */}
-        {profile.bio && (
+        {profileData.bio && (
           <div>
             <h3 className="font-semibold mb-2">Biografía</h3>
-            <p className="text-muted-foreground">{profile.bio}</p>
+            <p className="text-muted-foreground">{profileData.bio}</p>
           </div>
         )}
 
@@ -223,6 +236,18 @@ export function ProfileCard({ profile, isOwnProfile = false, onEdit }: ProfileCa
           </Link>
         </div>
       </CardContent>
+      {/* Modal de edición de perfil */}
+      {showEditModal && (
+        <EditProfileModal
+          open={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          profile={profileData}
+          onProfileUpdated={async () => {
+            setShowEditModal(false)
+            await reloadProfile()
+          }}
+        />
+      )}
     </Card>
   )
 } 

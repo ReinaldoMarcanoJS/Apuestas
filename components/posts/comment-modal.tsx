@@ -39,6 +39,8 @@ interface CommentModalProps {
     onAddComment: (content: string) => Promise<void>;
     postInfo?: PostInfo;
     onShowLikes?: () => void;
+    imageUrls?: string[];
+    initialImageIndex?: number;
 }
 
 // Utilidad para formato de fecha relativo
@@ -60,7 +62,7 @@ function formatRelativeDate(dateString: string) {
     return `hace ${diffYear} año${diffYear > 1 ? 's' : ''}`;
 }
 
-export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comments, onAddComment, postInfo, onShowLikes }) => {
+export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comments, onAddComment, postInfo, onShowLikes, imageUrls = [], initialImageIndex = 0 }) => {
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(false);
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -70,6 +72,13 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
     const [replies, setReplies] = useState<{ [key: string]: Comment[] }>({});
     const [replyLoading, setReplyLoading] = useState(false);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    // Estado para el carrusel de imágenes
+    const [currentImg, setCurrentImg] = useState(initialImageIndex);
+
+    // Si cambia el initialImageIndex (por abrir el modal con otra imagen), actualiza el estado
+    React.useEffect(() => {
+      if (open) setCurrentImg(initialImageIndex);
+    }, [initialImageIndex, open]);
 
     useEffect(() => {
         // Obtener usuario actual (puedes optimizar esto si ya lo tienes en contexto)
@@ -165,6 +174,45 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                 </div>
                             </div>
                             <div className="mt-2 text-base">{postInfo.content}</div>
+                            {/* Carrusel de imágenes en grande debajo del texto */}
+                            {Array.isArray(imageUrls) && imageUrls.length > 0 && (
+                              <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex flex-col items-center justify-center relative my-4" style={{ minHeight: '320px', maxHeight: '480px' }}>
+                                <img
+                                  src={imageUrls[currentImg]}
+                                  alt={`Imagen ${currentImg + 1} de la publicación`}
+                                  className="max-w-full h-auto bg-white object-contain"
+                                  style={{ display: 'block', background: 'white', maxHeight: '480px' }}
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                  }}
+                                />
+                                {imageUrls.length > 1 && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
+                                      onClick={e => { e.stopPropagation(); setCurrentImg((prev) => prev === 0 ? imageUrls.length - 1 : prev - 1) }}
+                                      aria-label="Anterior"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
+                                      onClick={e => { e.stopPropagation(); setCurrentImg((prev) => prev === imageUrls.length - 1 ? 0 : prev + 1) }}
+                                      aria-label="Siguiente"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                    </button>
+                                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                                      {imageUrls.map((_, idx) => (
+                                        <span key={idx} className={`w-2 h-2 rounded-full ${idx === currentImg ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
                             <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
                                 <span className="flex items-center gap-1 cursor-pointer hover:underline" onClick={onShowLikes}><Heart className="h-4 w-4" /> {postInfo.likes}</span>
                                 <span className="flex items-center gap-1"><MessageCircle className="h-4 w-4" /> {postInfo.comments}</span>

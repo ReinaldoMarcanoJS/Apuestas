@@ -6,7 +6,7 @@ export default function FeedPage() {
     <div className="flex container mx-auto px-4 py-8">
       {/* Feed principal centrado */}
       <div className="flex-1 flex justify-center">
-        <div className="max-w-2xl w-full">
+        <div className="max-w-lg w-full">
           <PostsFeed />
         </div>
       </div>

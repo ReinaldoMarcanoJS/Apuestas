@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface Team {
   Competitions: any[];
@@ -77,7 +78,7 @@ export function PopularMatches() {
 
   const handleSubmit = (e: React.FormEvent, id: number) => {
     e.preventDefault();
-    alert(`Tu predicción para el partido ${id} fue: ${predicciones[id]}`);
+    // Ya no mostramos alert, solo se resalta el botón seleccionado
   };
 
   return (
@@ -123,41 +124,46 @@ export function PopularMatches() {
                   </span>
                 ))}
               </div>
-              <form onSubmit={(e) => handleSubmit(e, p.Id)} className="flex gap-2 items-center mt-1">
-                <label>
-                  <input
-                    type="radio"
-                    name={`prediccion-${p.Id}`}
-                    value="local"
-                    checked={predicciones[p.Id] === "local"}
-                    onChange={() => handlePrediccion(p.Id, "local")}
-                  /> {p.LocalTeam.Name}
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name={`prediccion-${p.Id}`}
-                    value="empate"
-                    checked={predicciones[p.Id] === "empate"}
-                    onChange={() => handlePrediccion(p.Id, "empate")}
-                  /> Empate
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name={`prediccion-${p.Id}`}
-                    value="visitante"
-                    checked={predicciones[p.Id] === "visitante"}
-                    onChange={() => handlePrediccion(p.Id, "visitante")}
-                  /> {p.AwayTeam.Name}
-                </label>
-                <button
-                  className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
-                  type="submit"
-                  disabled={!predicciones[p.Id]}
+              <form className="flex gap-2 items-center mt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  className={
+                    `transition-all border-2 shadow-none ` +
+                    (predicciones[p.Id] === "local"
+                      ? "bg-gray-200 text-blue-700 font-bold"
+                      : " bg-white text-gray-800 hover:bg-gray-100")
+                  }
+                  onClick={() => { handlePrediccion(p.Id, "local"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
                 >
-                  Votar
-                </button>
+                  {p.LocalTeam.Name}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className={
+                    `transition-all border-2 shadow-none ` +
+                    (predicciones[p.Id] === "empate"
+                      ? "bg-black text-white font-bold"
+                      : " bg-black text-white/70 hover:text-white")
+                  }
+                  onClick={() => { handlePrediccion(p.Id, "empate"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
+                >
+                  Empate
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className={
+                    `transition-all border-2 shadow-none ` +
+                    (predicciones[p.Id] === "visitante"
+                      ? "bg-gray-200 text-blue-700 font-bold"
+                      : "bg-gray-100 text-gray-800 hover:bg-gray-200")
+                  }
+                  onClick={() => { handlePrediccion(p.Id, "visitante"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
+                >
+                  {p.AwayTeam.Name}
+                </Button>
               </form>
             </li>
           ))}
