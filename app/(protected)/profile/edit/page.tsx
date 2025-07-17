@@ -16,29 +16,29 @@ export default function EditProfilePage() {
   const supabase = createClient()
 
   useEffect(() => {
-    loadProfile()
-  }, [])
-
-  const loadProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/auth/login')
-        return
+    const loadProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/auth/login')
+          return
+        }
+  
+        const userProfile = await getProfile(user.id)
+        if (!userProfile) {
+          setIsEditing(true)
+        } else {
+          setProfile(userProfile)
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error)
+      } finally {
+        setIsLoading(false)
       }
-
-      const userProfile = await getProfile(user.id)
-      if (!userProfile) {
-        setIsEditing(true)
-      } else {
-        setProfile(userProfile)
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error)
-    } finally {
-      setIsLoading(false)
     }
-  }
+    loadProfile()
+  }, [router, supabase.auth])
+
 
   const handleSave = (updatedProfile: Profile) => {
     setProfile(updatedProfile)
@@ -91,8 +91,6 @@ export default function EditProfilePage() {
           <div className="space-y-6">
             <ProfileCard 
               profile={profile!} 
-              isOwnProfile={true}
-              onEdit={() => setIsEditing(true)}
             />
           </div>
         )}

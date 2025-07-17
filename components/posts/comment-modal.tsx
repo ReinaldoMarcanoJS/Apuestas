@@ -8,6 +8,7 @@ import defaultAvatar from '@/public/default-avatar.png'; // Asegúrate de tener 
 import { likeComment, unlikeComment, isCommentLiked, getCommentLikesCount, getCommentReplies, addCommentReply } from '@/lib/supabase/posts';
 import { useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image'
 
 interface CommentUser {
   username: string;
@@ -177,7 +178,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                             {/* Carrusel de imágenes en grande debajo del texto */}
                             {Array.isArray(imageUrls) && imageUrls.length > 0 && (
                               <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex flex-col items-center justify-center relative my-4" style={{ minHeight: '320px', maxHeight: '480px' }}>
-                                <img
+                                <Image
                                   src={imageUrls[currentImg]}
                                   alt={`Imagen ${currentImg + 1} de la publicación`}
                                   className="max-w-full h-auto bg-white object-contain"
@@ -185,6 +186,8 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none'
                                   }}
+                                  width={600}
+                                  height={400}
                                 />
                                 {imageUrls.length > 1 && (
                                   <>
@@ -224,11 +227,13 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                     {comments.map(comment => (
                         <div key={comment.id} className="flex flex-col gap-1 mb-2">
                             <div className="flex items-start space-x-2">
-                                <img
+                                <Image
                                     src={comment.user.avatar_url || defaultAvatar.src}
                                     alt={comment.user.username}
                                     className="w-8 h-8 rounded-full object-cover"
                                     onError={e => (e.currentTarget.src = defaultAvatar.src)}
+                                    width={32}
+                                    height={32}
                                 />
                                 <div className="flex-1">
                                     <div className="flex text-start flex-col gap-2">
@@ -276,11 +281,13 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                         <div className="mt-2 ml-6 border-l pl-3 space-y-1">
                                             {replies[comment.id].map((reply) => (
                                                 <div key={reply.id} className="flex items-start space-x-2 text-xs">
-                                                    <img
+                                                    <Image
                                                         src={reply.user?.avatar_url || defaultAvatar.src}
                                                         alt={reply.user?.username}
                                                         className="w-6 h-6 rounded-full object-cover"
                                                         onError={e => (e.currentTarget.src = defaultAvatar.src)}
+                                                        width={24}
+                                                        height={24}
                                                     />
                                                     <div className="flex flex-col gap-2">
                                                         <div className='flex items-center gap-2'>

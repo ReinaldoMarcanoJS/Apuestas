@@ -7,7 +7,7 @@ export default function FeedPage() {
       {/* Feed principal centrado */}
       <div className="flex-1 flex justify-center">
         <div className="max-w-lg w-full">
-          <PostsFeed />
+          <PostsFeed showCreatePost={true} />
         </div>
       </div>
       {/* Panel derecho pegado a la derecha solo en desktop */}

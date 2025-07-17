@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PostWithProfile } from '@/lib/types/database'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { Heart, MessageCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react'
 import { likePost, unlikePost, isPostLiked, deletePost, getPost, getPostComments, addPostComment, getPostLikes } from '@/lib/supabase/posts'
 import Link from 'next/link'
@@ -18,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { CommentModal } from './comment-modal'
 import { LikesModal } from './likes-modal'
+import Image from 'next/image'
 
 interface CommentUser {
   username: string;
@@ -60,9 +60,14 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
   // Estado para el carrusel de imágenes
   const [currentImg, setCurrentImg] = useState(0)
 
+  const checkCurrentUser = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    setCurrentUserId(user?.id || null)
+  }, [supabase])
+
   useEffect(() => {
     checkCurrentUser();
-  }, [post.id]);
+  }, [post.id, checkCurrentUser]);
 
   useEffect(() => {
     if (currentUserId) {
@@ -70,11 +75,6 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId, post.id]);
-
-  const checkCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setCurrentUserId(user?.id || null)
-  }
 
   const checkLikeStatus = async () => {
     if (!currentUserId) return
@@ -154,14 +154,17 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
   // Simulación: cargar comentarios (aquí deberías llamar a tu API real)
   const loadComments = async () => {
     const data = await getPostComments(post.id)
-    const normalized: Comment[] = (data || []).map((c: any) => ({
-      ...c,
+    const normalized: Comment[] = (data || []).map((c: unknown) => {
+      const user = (c as { user?: Partial<CommentUser> }).user;
+      return {
+        ...(c as Comment),
       user: {
-        username: c.user?.username,
-        display_name: c.user?.display_name || c.user?.username,
-        avatar_url: c.user?.avatar_url
+          username: user?.username ?? '',
+          display_name: user?.display_name ?? user?.username ?? '',
+          avatar_url: user?.avatar_url ?? null
+        }
       }
-    }))
+    })
     setComments(normalized)
   }
 
@@ -189,14 +192,23 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
   const handleOpenLikes = async (e: React.MouseEvent<HTMLSpanElement, MouseEvent> | { stopPropagation: () => void }) => {
     e.stopPropagation()
     const data = await getPostLikes(post.id)
-    const normalized: LikeUser[] = (data || []).map((l: any) => ({
-      ...l,
-      user: {
-        username: Array.isArray(l.user) ? l.user[0]?.username : l.user?.username,
-        display_name: Array.isArray(l.user) ? l.user[0]?.display_name || l.user[0]?.username : l.user?.display_name || l.user?.username,
-        avatar_url: Array.isArray(l.user) ? l.user[0]?.avatar_url : l.user?.avatar_url
+    const normalized: LikeUser[] = (data || []).map((l: unknown) => {
+      const user = (l as { user?: Partial<CommentUser> | Partial<CommentUser>[] }).user;
+      let userObj: Partial<CommentUser> | undefined;
+      if (Array.isArray(user)) {
+        userObj = user[0];
+      } else {
+        userObj = user;
       }
-    }))
+      return {
+        ...(l as LikeUser),
+      user: {
+          username: userObj?.username ?? '',
+          display_name: userObj?.display_name ?? userObj?.username ?? '',
+          avatar_url: userObj?.avatar_url ?? null
+      }
+      }
+    })
     setLikesUsers(normalized)
     setIsLikesModalOpen(true)
   }
@@ -276,14 +288,16 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
           {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
             <div
               className="w-full bg-gray-100 rounded-lg overflow-hidden flex flex-col items-center justify-center relative cursor-pointer"
-              style={{ minHeight: '220px', maxHeight: '400px' }}
+              style={{ minHeight: '220px' }}
               onClick={handleOpenComments}
             >
-              <img
+              <Image
                 src={post.image_urls[currentImg]}
                 alt={`Imagen ${currentImg + 1} de la publicación`}
-                className="max-w-full h-auto bg-white object-contain"
-                style={{ display: 'block', background: 'white', maxHeight: '400px' }}
+                width={800} // Puedes ajustar este valor según el tamaño real de tus imágenes
+                height={600} // Puedes ajustar este valor según el tamaño real de tus imágenes
+                className="w-full h-auto bg-white object-cover"
+                style={{ display: 'block', background: 'white' }}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none'
                 }}
@@ -368,7 +382,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
         {/* Lista de últimos comentarios */}
         {comments.length > 0 && (
           <div className="mt-3 space-y-2">
-            {comments.slice(-2).map((comment, idx) => (
+            {comments.slice(-2).map((comment) => (
               <div key={comment.id} className="flex items-start space-x-2 text-sm">
                 <Avatar className="h-7 w-7">
                   <AvatarImage src={comment.user?.avatar_url || ''} alt={comment.user?.username || ''} />
@@ -413,7 +427,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
           likes: likesCount,
           comments: comments.length,
         }}
-        onShowLikes={() => handleOpenLikes({ stopPropagation: () => {} } as any)}
+        onShowLikes={() => handleOpenLikes({ stopPropagation: () => {} } as unknown as React.MouseEvent<HTMLSpanElement, MouseEvent>)}
         imageUrls={post.image_urls}
         initialImageIndex={currentImg}
       />

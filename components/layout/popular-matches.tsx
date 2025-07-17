@@ -3,21 +3,21 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface Team {
-  Competitions: any[];
+  Competitions: unknown[];
   Id: number;
   Name: string;
   Image: string;
 }
 
-interface Sport {
-  MatchesSport: boolean;
-  Id: number;
-  Name: string;
-  Image: string;
-}
+// interface Sport {
+//   MatchesSport: boolean;
+//   Id: number;
+//   Name: string;
+//   Image: string;
+// }
 
 interface Competition {
-  Sport: Sport;
+  Sport: unknown;
   Id: number;
   Name: string;
   Image: string;
@@ -38,17 +38,6 @@ interface Match {
   DateEnd?: string;
   Channels: Channel[];
   Id: number;
-}
-
-interface PopularMatch {
-  id: string;
-  home_team: string;
-  away_team: string;
-  league: string;
-  match_date: string;
-  status: string;
-  home_score: number | null;
-  away_score: number | null;
 }
 
 type Matches = Match[];
@@ -76,10 +65,10 @@ export function PopularMatches() {
     setPredicciones((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent, id: number) => {
-    e.preventDefault();
-    // Ya no mostramos alert, solo se resalta el botón seleccionado
-  };
+  // const handleSubmit = (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   // Ya no mostramos alert, solo se resalta el botón seleccionado
+  // };
 
   return (
     <aside className="p-4 bg-white rounded-lg shadow space-y-4">
@@ -134,7 +123,7 @@ export function PopularMatches() {
                       ? "bg-gray-200 text-blue-700 font-bold"
                       : " bg-white text-gray-800 hover:bg-gray-100")
                   }
-                  onClick={() => { handlePrediccion(p.Id, "local"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
+                  onClick={() => handlePrediccion(p.Id, "local")}
                 >
                   {p.LocalTeam.Name}
                 </Button>
@@ -147,7 +136,7 @@ export function PopularMatches() {
                       ? "bg-black text-white font-bold"
                       : " bg-black text-white/70 hover:text-white")
                   }
-                  onClick={() => { handlePrediccion(p.Id, "empate"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
+                  onClick={() => handlePrediccion(p.Id, "empate")}
                 >
                   Empate
                 </Button>
@@ -160,7 +149,7 @@ export function PopularMatches() {
                       ? "bg-gray-200 text-blue-700 font-bold"
                       : "bg-gray-100 text-gray-800 hover:bg-gray-200")
                   }
-                  onClick={() => { handlePrediccion(p.Id, "visitante"); handleSubmit({ preventDefault: () => {} } as React.FormEvent, p.Id); }}
+                  onClick={() => handlePrediccion(p.Id, "visitante")}
                 >
                   {p.AwayTeam.Name}
                 </Button>

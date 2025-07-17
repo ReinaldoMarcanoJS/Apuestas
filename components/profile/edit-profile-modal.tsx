@@ -38,7 +38,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ open, onClos
       if (uploadError) throw uploadError;
       const { data: publicUrlData } = supabase.storage.from('publicaciones').getPublicUrl(filePath);
       setAvatarUrl(publicUrlData.publicUrl);
-    } catch (err) {
+    } catch {
       setError('Error al subir la imagen');
     } finally {
       setIsLoading(false);
@@ -55,7 +55,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ open, onClos
       return;
     }
     // Validar que el nombre de usuario sea único
-    const { data: existing, error: userError } = await supabase
+    const { data: existing } = await supabase
       .from('profiles')
       .select('id')
       .eq('username', username.trim())
@@ -78,7 +78,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ open, onClos
         .eq('id', profile.id);
       if (updateError) throw updateError;
       onProfileUpdated();
-    } catch (err) {
+    } catch  {
       setError('Error al actualizar el perfil');
     } finally {
       setIsLoading(false);

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,25 +17,17 @@ import { Search, Settings, LogOut, User } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { Profile } from '@/lib/types/database'
+import { User as SupabaseUser } from '@supabase/supabase-js'
 
 export function Header() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const supabase = createClient()
   const router = useRouter()
   const pathname = usePathname()
 
-  // No mostrar header en páginas de auth
-  if (pathname.startsWith('/auth/')) {
-    return null
-  }
-
-  useEffect(() => {
-    checkUser()
-  }, [])
-
-  const checkUser = async () => {
+  const checkUser = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -53,7 +45,16 @@ export function Header() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase]);
+
+  // No mostrar header en páginas de auth
+  const isAuthPage = pathname.startsWith('/auth/')
+
+  useEffect(() => {
+    if (!isAuthPage) {
+      checkUser()
+    }
+  }, [checkUser, isAuthPage])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()

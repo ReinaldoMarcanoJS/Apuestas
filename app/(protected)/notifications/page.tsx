@@ -26,30 +26,30 @@ export default function NotificationsPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const fetchNotifications = async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    // Traer notificaciones y datos del usuario que generó la acción
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*, from_user:from_user_id (username, display_name, avatar_url)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      setNotifications(data);
-      // Marcar todas como leídas
-      await supabase
+    const fetchNotifications = async () => {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      // Traer notificaciones y datos del usuario que generó la acción
+      const { data, error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .select('*, from_user:from_user_id (username, display_name, avatar_url)')
         .eq('user_id', user.id)
-        .eq('is_read', false);
-    }
-    setLoading(false);
-  };
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setNotifications(data);
+        // Marcar todas como leídas
+        await supabase
+          .from('notifications')
+          .update({ is_read: true })
+          .eq('user_id', user.id)
+          .eq('is_read', false);
+      }
+      setLoading(false);
+    };
+    fetchNotifications();
+  }, [supabase]);
+
 
   const handleDelete = async (id: string) => {
     await supabase.from('notifications').delete().eq('id', id);

@@ -4,12 +4,11 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Image, Send, Loader2, X } from 'lucide-react'
+import { Image as LucideImage, Send, Loader2} from 'lucide-react'
 import { createPost } from '@/lib/supabase/posts'
 import { useRef } from 'react'
+import Image from 'next/image'
 
 interface CreatePostProps {
   onPostCreated?: () => void
@@ -18,13 +17,11 @@ interface CreatePostProps {
 
 export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compartir hoy?" }: CreatePostProps) {
   const [content, setContent] = useState('')
-  const [imageUrl, setImageUrl] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const supabase = createClient()
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [previews, setPreviews] = useState<string[]>([])
 
@@ -72,15 +69,15 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
     }
   }
 
-  const isValidImageUrl = (url: string) => {
-    if (!url) return true
-    try {
-      new URL(url)
-      return true
-    } catch {
-      return false
-    }
-  }
+  // const isValidImageUrl = (url: string) => {
+  //   if (!url) return true
+  //   try {
+  //     new URL(url)
+  //     return true
+  //   } catch {
+  //     return false
+  //   }
+  // }
 
   // Nueva función para subir varias imágenes a Supabase Storage
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,10 +124,10 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
   }
 
   // Previsualización para URL manual
-  const handleImageUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setImageUrl(e.target.value)
-    setPreviewUrl(e.target.value)
-  }
+  // const handleImageUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   setImageUrl(e.target.value)
+  //   setPreviewUrl(e.target.value)
+  // }
 
   // Nueva función para validar si se puede publicar
   const canPublish =
@@ -144,8 +141,8 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Image className="h-5 w-5" />
+        <CardTitle className="flex items-center space-x-2 " >
+          <LucideImage className="h-5 w-5" />
           <span>Nueva Publicación</span>
         </CardTitle>
       </CardHeader>
@@ -171,7 +168,7 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
             <div className="flex gap-2 flex-wrap mb-2">
               {previews.map((url, idx) => (
                 <div key={idx} className="relative group">
-                  <img src={url} alt={`preview-${idx}`} className="max-h-32 rounded border bg-white object-contain" style={{ maxWidth: '120px' }} />
+                  <Image src={url} width={120} height={120} alt={`preview-${idx}`} className="max-h-32 rounded border bg-white object-contain" />
                   <button type="button" onClick={() => handleRemoveImage(idx)} className="absolute top-1 right-1 bg-white bg-opacity-80 rounded-full p-1 text-red-500 hover:bg-opacity-100 transition-opacity">
                     <span className="sr-only">Quitar</span>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -197,7 +194,7 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading || uploading || imageUrls.length >= 4}
             >
-              <Image className="h-4 w-4 mr-2" />
+              <LucideImage className="h-4 w-4 mr-2" />
               {imageUrls.length >= 4 ? 'Máx. 4 imágenes' : 'Subir imágenes'}
             </Button>
             <input
@@ -214,9 +211,9 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
               variant="outline"
               size="sm"
               onClick={() => handleRemoveImage(0)}
-              disabled={isLoading || uploading || (!imageUrl && !previewUrl)}
+              disabled={isLoading || uploading || imageUrls.length === 0}
             >
-              <Image className="h-4 w-4 mr-2" />
+              <LucideImage className="h-4 w-4 mr-2" />
               Quitar imagen
             </Button>
            </div>

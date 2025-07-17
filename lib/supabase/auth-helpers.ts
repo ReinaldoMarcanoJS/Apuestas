@@ -2,7 +2,6 @@ import { createClient } from './client'
 import { createProfile, getProfile } from './profiles'
 
 export async function ensureUserProfile(userId: string, email: string) {
-  const supabase = createClient()
   
   // Verificar si el usuario ya tiene perfil
   const existingProfile = await getProfile(userId)

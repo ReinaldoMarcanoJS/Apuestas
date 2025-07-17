@@ -1,26 +1,41 @@
-import { redirect } from "next/navigation";
+"use client"
+import { redirect, useSearchParams } from "next/navigation";
 import { getProfileWithStats } from '@/lib/supabase/profiles'
+import { ProfileWithStats } from '@/lib/types/database'
 import { ProfileCard } from '@/components/profile/profile-card'
 import { PostsFeed } from '@/components/posts/posts-feed'
 import { PopularMatches } from "@/components/layout/popular-matches";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
-interface ProfilePageProps {
-  params: {
-    username: string
-  }
-}
 
-export default async function ProfilePage({ params }: ProfilePageProps) {
-  // Si no hay username, redirige a login
-  if (!params?.username) {
-    redirect("/auth/login");
-  }
+export default function ProfilePage() {
+  const searchParams = useSearchParams();
+  const params = useParams();
+  const username = params.username as string;
+  const [profile, setProfile] = useState<ProfileWithStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const profile = await getProfileWithStats(params.username);
+  useEffect(() => {
+    if (!username) {
+      console.log(username);
+      redirect("/auth/login");
+      return;
+    }
+    async function fetchProfile() {
+      const prof = await getProfileWithStats(username as string);
+      if (!prof) {
+        redirect("/auth/feed");
+        return;
+      }
+      setProfile(prof);
+      setLoading(false);
+    }
+    fetchProfile();
+  }, [searchParams]);
 
-  // Si no existe el perfil, redirige a feed
-  if (!profile) {
-    redirect("/auth/feed");
+  if (loading || !profile) {
+    return <div className="container mx-auto px-4 py-8">Cargando perfil...</div>;
   }
 
   return (

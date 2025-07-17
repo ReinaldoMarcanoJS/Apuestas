@@ -156,7 +156,7 @@ export async function searchProfiles(query: string): Promise<Profile[]> {
 export async function checkUsernameAvailability(username: string): Promise<boolean> {
   const supabase = createClient()
   
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('profiles')
     .select('id')
     .eq('username', username)

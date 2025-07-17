@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { 
   Home, 
-  MessageSquare, 
   Trophy, 
   Users, 
   Calendar, 
@@ -34,23 +33,14 @@ export function Sidebar() {
   const router = useRouter()
   const supabase = createClient()
 
+  // Todos los hooks deben ir antes de cualquier return condicional
   useEffect(() => {
     if (loadingHref && pathname === loadingHref) {
       setLoadingHref(null);
     }
   }, [pathname, loadingHref]);
 
-  // No mostrar sidebar en páginas de auth
-  if (pathname.startsWith('/auth/')) {
-    return null
-  }
-
-  useEffect(() => {
-    getCurrentUser()
-    fetchUnreadNotifications()
-  }, [])
-
-  const getCurrentUser = async () => {
+  const getCurrentUser = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -66,9 +56,9 @@ export function Sidebar() {
     } catch (error) {
       console.error('Error checking user:', error)
     }
-  }
+  }, [supabase])
 
-  const fetchUnreadNotifications = async () => {
+  const fetchUnreadNotifications = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { count } = await supabase
@@ -77,30 +67,22 @@ export function Sidebar() {
       .eq('user_id', user.id)
       .eq('is_read', false)
     setUnreadCount(count || 0)
+  }, [supabase])
+
+  useEffect(() => {
+    getCurrentUser()
+    fetchUnreadNotifications()
+  }, [getCurrentUser, fetchUnreadNotifications])
+
+  // Ahora los returns condicionales
+  if (pathname.startsWith('/auth/')) {
+    return null
   }
 
   if (!user) {
     return null
   }
 
-  if (!profile) {
-    // Skeleton de carga simple
-    return (
-      <aside className="p-4 bg-white rounded-lg shadow space-y-4 animate-fade-in">
-        <div className="flex items-center gap-3 animate-pulse">
-          <div className="h-12 w-12 rounded-full bg-gray-300" />
-          <div className="flex-1 h-5 bg-gray-300 rounded" />
-        </div>
-        <div className="h-4 bg-gray-200 rounded w-3/4 mt-2 animate-pulse" />
-        <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
-        <div className="flex flex-col gap-2 mt-4">
-          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-        </div>
-      </aside>
-    )
-  }
 
   const navigationItems = [
     {

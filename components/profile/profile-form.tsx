@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/lib/types/database'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { Check, X, Loader2 } from 'lucide-react'
 import { checkUsernameAvailability } from '@/lib/supabase/profiles'
 
@@ -32,13 +31,7 @@ export function ProfileForm({ profile, onSave, onCancel }: ProfileFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const supabase = createClient()
 
-  useEffect(() => {
-    if (formData.username && formData.username !== profile?.username) {
-      checkUsername()
-    }
-  }, [formData.username])
-
-  const checkUsername = async () => {
+  const checkUsername = useCallback(async () => {
     if (formData.username.length < 3) {
       setUsernameStatus('idle')
       return
@@ -50,9 +43,16 @@ export function ProfileForm({ profile, onSave, onCancel }: ProfileFormProps) {
       const isAvailable = await checkUsernameAvailability(formData.username)
       setUsernameStatus(isAvailable ? 'available' : 'taken')
     } catch (error) {
+      console.error('Error checking username:', error)
       setUsernameStatus('idle')
     }
+  }, [formData.username])
+
+  useEffect(() => {
+    if (formData.username && formData.username !== profile?.username) {
+      checkUsername()
   }
+  }, [formData.username, checkUsername, profile?.username])
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}

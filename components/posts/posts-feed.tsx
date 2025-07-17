@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { PostWithProfile } from '@/lib/types/database'
 import { getPosts, getPostsByUser } from '@/lib/supabase/posts'
 import { PostCard } from './post-card'
@@ -20,7 +20,7 @@ export function PostsFeed({ userId, showCreatePost = true }: PostsFeedProps) {
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState('')
 
-  const loadPosts = async (offset = 0, append = false) => {
+  const loadPosts = useCallback(async (offset = 0, append = false) => {
     try {
       let newPosts: PostWithProfile[]
       if (userId) {
@@ -44,11 +44,11 @@ export function PostsFeed({ userId, showCreatePost = true }: PostsFeedProps) {
       setIsLoading(false)
       setIsLoadingMore(false)
     }
-  }
+  }, [userId]);
 
   useEffect(() => {
     loadPosts()
-  }, [])
+  }, [loadPosts])
 
   const handleLoadMore = () => {
     if (isLoadingMore || !hasMore) return

@@ -1,5 +1,36 @@
 import { createClient } from './client'
-import { Post, PostWithProfile, PostComment, Profile } from '../types/database'
+import { Post, PostWithProfile} from '../types/database'
+
+// Extiendo el tipo para incluir post_likes y post_comments
+
+type PostWithExtras = PostWithProfile & {
+  post_likes?: { id: string }[];
+  post_comments?: { id: string }[];
+};
+
+// Tipos auxiliares para datos crudos de Supabase
+interface RawUser {
+  username?: string;
+  display_name?: string;
+  avatar_url?: string | null;
+}
+interface RawComment {
+  id: string;
+  content: string;
+  created_at: string;
+  user?: RawUser | RawUser[];
+}
+interface RawLike {
+  id: string;
+  user?: RawUser | RawUser[];
+}
+interface RawReply {
+  id: string;
+  content: string;
+  created_at: string;
+  user?: RawUser | RawUser[];
+  parent_comment_id: string | null;
+}
 
 export async function getPosts(limit = 20, offset = 0): Promise<PostWithProfile[]> {
   const supabase = createClient()
@@ -17,7 +48,7 @@ export async function getPosts(limit = 20, offset = 0): Promise<PostWithProfile[
 
   if (!posts) return []
 
-  const postsWithProfiles: PostWithProfile[] = (posts as any[]).map((post) => ({
+  const postsWithProfiles: PostWithProfile[] = (posts as PostWithExtras[]).map((post) => ({
     ...post,
     profiles: post.profiles || {
       id: post.user_id,
@@ -29,8 +60,8 @@ export async function getPosts(limit = 20, offset = 0): Promise<PostWithProfile[
       updated_at: new Date().toISOString()
     },
     _count: {
-      post_likes: (post as any).post_likes ? (post as any).post_likes.length : 0,
-      post_comments: (post as any).post_comments ? (post as any).post_comments.length : 0
+      post_likes: post.post_likes ? post.post_likes.length : 0,
+      post_comments: post.post_comments ? post.post_comments.length : 0
     }
   }))
 
@@ -54,7 +85,7 @@ export async function getPostsByUser(userId: string, limit = 20, offset = 0): Pr
 
   if (!posts) return []
 
-  const postsWithProfiles: PostWithProfile[] = (posts as any[]).map((post) => ({
+  const postsWithProfiles: PostWithProfile[] = (posts as PostWithExtras[]).map((post) => ({
     ...post,
     profiles: post.profiles || {
       id: post.user_id,
@@ -66,8 +97,8 @@ export async function getPostsByUser(userId: string, limit = 20, offset = 0): Pr
       updated_at: new Date().toISOString()
     },
     _count: {
-      post_likes: (post as any).post_likes ? (post as any).post_likes.length : 0,
-      post_comments: (post as any).post_comments ? (post as any).post_comments.length : 0
+      post_likes: post.post_likes ? post.post_likes.length : 0,
+      post_comments: post.post_comments ? post.post_comments.length : 0
     }
   }))
 
@@ -151,8 +182,8 @@ export async function getPost(postId: string): Promise<PostWithProfile | null> {
       updated_at: new Date().toISOString()
     },
     _count: {
-      post_likes: post.post_likes ? post.post_likes.length : 0,
-      post_comments: post.post_comments ? post.post_comments.length : 0
+      post_likes: post && post.post_likes ? post.post_likes.length : 0,
+      post_comments: post && post.post_comments ? post.post_comments.length : 0
     }
   }
 }
@@ -253,14 +284,15 @@ export async function getPostComments(postId: string): Promise<Array<{ id: strin
     console.error('Error fetching comments:', error)
     return []
   }
-  return (data || []).map((c: any) => {
-    const user = Array.isArray(c.user) ? c.user[0] : c.user;
+  return (data || []).map((c: unknown) => {
+    const comment = c as RawComment;
+    const user = Array.isArray(comment.user) ? comment.user[0] : comment.user;
     return {
-      ...c,
+      ...comment,
       user: {
-        username: user?.username,
-        display_name: user?.display_name || user?.username,
-        avatar_url: user?.avatar_url
+        username: user?.username ?? '',
+        display_name: user?.display_name ?? user?.username ?? '',
+        avatar_url: user?.avatar_url ?? null
       }
     }
   })
@@ -303,14 +335,15 @@ export async function getPostLikes(postId: string) {
     console.error('Error fetching post likes:', error)
     return []
   }
-  return (data || []).map((c: any) => {
-    const user = Array.isArray(c.user) ? c.user[0] : c.user;
+  return (data || []).map((c: unknown) => {
+    const like = c as RawLike;
+    const user = Array.isArray(like.user) ? like.user[0] : like.user;
     return {
-      ...c,
+      ...like,
       user: {
-        username: user?.username,
-        display_name: user?.display_name || user?.username,
-        avatar_url: user?.avatar_url
+        username: user?.username ?? '',
+        display_name: user?.display_name ?? user?.username ?? '',
+        avatar_url: user?.avatar_url ?? null
       }
     }
   })
@@ -389,14 +422,15 @@ export async function getCommentReplies(commentId: string): Promise<Array<{ id: 
     console.error('Error fetching comment replies:', error)
     return []
   }
-  return (data || []).map((c: any) => {
-    const user = Array.isArray(c.user) ? c.user[0] : c.user;
+  return (data || []).map((c: unknown) => {
+    const reply = c as RawReply;
+    const user = Array.isArray(reply.user) ? reply.user[0] : reply.user;
     return {
-      ...c,
+      ...reply,
       user: {
-        username: user?.username,
-        display_name: user?.display_name || user?.username,
-        avatar_url: user?.avatar_url
+        username: user?.username ?? '',
+        display_name: user?.display_name ?? user?.username ?? '',
+        avatar_url: user?.avatar_url ?? null
       }
     }
   })

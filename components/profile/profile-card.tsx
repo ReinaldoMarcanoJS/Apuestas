@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile, ProfileWithStats } from '@/lib/types/database'
 import { Button } from '@/components/ui/button'
@@ -13,36 +13,26 @@ import { EditProfileModal } from './edit-profile-modal'
 
 interface ProfileCardProps {
   profile: ProfileWithStats | Profile
-  isOwnProfile?: boolean
-  onEdit?: () => void
 }
 
-export function ProfileCard({ profile, isOwnProfile = false, onEdit }: ProfileCardProps) {
+export function ProfileCard({ profile }: ProfileCardProps) {
   const [isFollowing, setIsFollowing] = useState(false)
   const [followersCount, setFollowersCount] = useState(0)
-  const [followingCount, setFollowingCount] = useState(0)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [profileData, setProfileData] = useState(profile)
   const supabase = createClient()
 
-  useEffect(() => {
-    getCurrentUser()
-  }, [])
-
-  useEffect(() => {
-    if (currentUserId && profile.id !== currentUserId) {
-      checkFollowStatus()
-    }
-    loadFollowCounts()
-  }, [profile.id, currentUserId])
-
-  const getCurrentUser = async () => {
+  const getCurrentUser = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     setCurrentUserId(user?.id || null)
-  }
+  }, [supabase])
 
-  const checkFollowStatus = async () => {
+  useEffect(() => {
+    getCurrentUser()
+  }, [getCurrentUser])
+
+  const checkFollowStatus = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
@@ -54,9 +44,9 @@ export function ProfileCard({ profile, isOwnProfile = false, onEdit }: ProfileCa
       .single()
 
     setIsFollowing(!!data)
-  }
+  }, [supabase, profile.id])
 
-  const loadFollowCounts = async () => {
+  const loadFollowCounts = useCallback(async () => {
     // Followers count
     const { count: followers } = await supabase
       .from('followers')
@@ -64,14 +54,20 @@ export function ProfileCard({ profile, isOwnProfile = false, onEdit }: ProfileCa
       .eq('following_id', profile.id)
 
     // Following count
-    const { count: following } = await supabase
+    await supabase
       .from('followers')
       .select('*', { count: 'exact', head: true })
       .eq('follower_id', profile.id)
 
     setFollowersCount(followers || 0)
-    setFollowingCount(following || 0)
+  }, [supabase, profile.id])
+
+  useEffect(() => {
+    if (currentUserId && profile.id !== currentUserId) {
+      checkFollowStatus()
   }
+    loadFollowCounts()
+  }, [profile.id, currentUserId, checkFollowStatus, loadFollowCounts])
 
   const handleFollow = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -115,7 +111,7 @@ export function ProfileCard({ profile, isOwnProfile = false, onEdit }: ProfileCa
 
   // Recargar perfil desde Supabase
   const reloadProfile = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', profile.id)
