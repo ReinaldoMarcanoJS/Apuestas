@@ -206,16 +206,6 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
               disabled={isLoading || uploading || imageUrls.length >= 4}
               multiple
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleRemoveImage(0)}
-              disabled={isLoading || uploading || imageUrls.length === 0}
-            >
-              <LucideImage className="h-4 w-4 mr-2" />
-              Quitar imagen
-            </Button>
            </div>
             {uploading && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
             <Button

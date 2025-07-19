@@ -1,151 +1,367 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+'use client'
+import { useEffect, useState, useMemo } from 'react'
+import Image from 'next/image'
 
-interface Team {
-  Competitions: unknown[];
-  Id: number;
-  Name: string;
-  Image: string;
-}
-
-interface Competition {
-  Sport: unknown;
-  Id: number;
-  Name: string;
-  Image: string;
-}
-
-interface Channel {
-  Aljazeera: boolean;
-  Id: number;
-  Name: string;
-  Image: string;
+interface League {
+  id: number
+  name: string
+  logo: string | null
+  country?: string | null
+  season?: number | null
 }
 
 interface Match {
-  LocalTeam: Team;
-  AwayTeam: Team;
-  Competition: Competition;
-  Date: string;
-  DateEnd?: string;
-  Channels: Channel[];
-  Id: number;
+  id: string
+  home_team: string
+  away_team: string
+  league: string
+  match_date: string
+  status: string
+  home_score: number | null
+  away_score: number | null
+  home_logo?: string | null
+  away_logo?: string | null
+  start_timestamp?: number | null
+  api_status?: string | null
 }
 
-type Matches = Match[];
+const STATUS_FILTERS = [
+  { label: 'No comenzados', value: 'upcoming' },
+  { label: 'En vivo', value: 'live' },
+  { label: 'Finalizados', value: 'finished' },
+]
 
 export default function MatchesPage() {
-  const [partidos, setPartidos] = useState<Matches>([]);
-  const [loading, setLoading] = useState(true);
-  const [predicciones, setPredicciones] = useState<{ [key: number]: string }>({});
+  const [matches, setMatches] = useState<Match[]>([])
+  const [leagues, setLeagues] = useState<League[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [selectedLeague, setSelectedLeague] = useState<number | null>(null)
+  const [votes, setVotes] = useState<Record<string, 'local' | 'empate' | 'visitante'>>({})
+  const [statusFilter, setStatusFilter] = useState<'upcoming' | 'live' | 'finished' | null>(null)
 
   useEffect(() => {
-    fetch("/api/popular-matches")
-      .then((res) => res.json())
-      .then((data) => {
-        setPartidos(Array.isArray(data) ? data : data.Events || []);
-        setLoading(false);
+    fetch('/api/football-matches')
+      .then(res => res.json())
+      .then(data => {
+        setMatches(data.matches || [])
+        setLeagues(data.leagues || [])
+        setLoading(false)
       })
-      .catch((err) => {
-        console.error("Error al cargar partidos desde tu backend:", err);
-        setLoading(false);
-      });
-  }, []);
+  }, [])
 
-  const handlePrediccion = (id: number, value: string) => {
-    setPredicciones((prev) => ({ ...prev, [id]: value }));
-  };
+  // Filtrar partidos por búsqueda, liga y status
+  const filteredMatches = useMemo(() => {
+    return matches.filter(m => {
+      const matchText = `${m.home_team} ${m.away_team} ${m.league}`.toLowerCase()
+      const searchMatch = matchText.includes(search.toLowerCase())
+      let leagueMatch = true
+      if (selectedLeague) {
+        const leagueObj = leagues.find(l => l.id === selectedLeague)
+        leagueMatch = leagueObj ? m.league === leagueObj.name : false
+      }
+      let statusMatch = true
+      if (statusFilter) {
+        statusMatch = m.status === statusFilter
+      }
+      return searchMatch && leagueMatch && statusMatch
+    })
+  }, [matches, search, selectedLeague, leagues, statusFilter])
+
+  const handleVote = async (matchId: string, vote: 'local' | 'empate' | 'visitante') => {
+    setVotes(prev => ({ ...prev, [matchId]: vote }))
+    
+    try {
+      const response = await fetch('/api/predictions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          matchId,
+          prediction: vote
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('Error guardando predicción:', error)
+        // Revertir el voto si falla
+        setVotes(prev => {
+          const newVotes = { ...prev }
+          delete newVotes[matchId]
+          return newVotes
+        })
+      }
+    } catch (error) {
+      console.error('Error guardando predicción:', error)
+      // Revertir el voto si falla
+      setVotes(prev => {
+        const newVotes = { ...prev }
+        delete newVotes[matchId]
+        return newVotes
+      })
+    }
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Todos los Partidos</h1>
-      {loading ? (
-        <div className="space-y-6">
-          {[...Array(6)].map((_, idx) => (
-            <div key={idx} className="p-4 rounded-lg bg-gray-100 animate-pulse flex flex-col gap-2">
-              <div className="flex justify-between items-center">
-                <div className="h-4 w-40 bg-gray-300 rounded" />
-                <div className="h-3 w-20 bg-gray-200 rounded" />
+    <div className="w-full min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto px-2 py-6 flex flex-col md:flex-row gap-6">
+        {/* Columna de partidos */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+            <input
+              type="text"
+              placeholder="Buscar equipo o liga..."
+              className="border rounded px-3 py-2 flex-1"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <h1 className="text-2xl font-bold mb-2">Partidos de hoy</h1>
+          <div className="flex gap-2 mb-4">
+            {STATUS_FILTERS.map(f => (
+              <button
+                key={f.value}
+                className={`px-3 py-1 rounded font-semibold border transition-colors ${statusFilter === f.value ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 border-gray-300 text-gray-700'}`}
+                onClick={() => setStatusFilter(f.value as 'upcoming' | 'live' | 'finished')}
+              >
+                {f.label}
+              </button>
+            ))}
+            <button
+              className={`px-3 py-1 rounded font-semibold border transition-colors ${statusFilter === null ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 border-gray-300 text-gray-700'}`}
+              onClick={() => setStatusFilter(null)}
+            >
+              Todos
+            </button>
+          </div>
+          {loading ? (
+            <div className="space-y-4">
+              {/* Skeleton para búsqueda */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+                <div className="h-10 bg-gray-200 rounded flex-1 animate-pulse"></div>
               </div>
-              <div className="h-3 w-32 bg-gray-200 rounded" />
-              <div className="flex gap-2 mt-2">
-                <div className="h-6 w-20 bg-gray-200 rounded" />
-                <div className="h-6 w-20 bg-gray-200 rounded" />
-                <div className="h-6 w-20 bg-gray-200 rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : partidos.length === 0 ? (
-        <div>No hay partidos disponibles.</div>
-      ) : (
-        <ul className="space-y-6">
-          {partidos.map((p) => (
-            <li key={p.Id} className="flex flex-col gap-2 border-b pb-4">
-              <div className="flex justify-between items-center">
-                <span>
-                  {p.LocalTeam.Name} vs {p.AwayTeam.Name}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {new Date(p.Date).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-gray-600">
-                <span>{p.Competition.Name}</span>
-              </div>
-              <div className="flex flex-wrap gap-2 text-xs mt-1">
-                {p.Channels && p.Channels.map((ch) => (
-                  <span key={ch.Id} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
-                    {ch.Name}
-                  </span>
+              
+              {/* Skeleton para título */}
+              <div className="h-8 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
+              
+              {/* Skeleton para filtros */}
+              <div className="flex gap-2 mb-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-8 bg-gray-200 rounded w-24 animate-pulse"></div>
                 ))}
               </div>
-              <form className="flex gap-2 items-center mt-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  className={
-                    `transition-all border-2 shadow-none ` +
-                    (predicciones[p.Id] === "local"
-                      ? "bg-gray-200 text-blue-700 font-bold"
-                      : " bg-white text-gray-800 hover:bg-gray-100")
-                  }
-                  onClick={() => handlePrediccion(p.Id, "local")}
+              
+              {/* Skeleton para partidos */}
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow p-4 flex flex-col sm:flex-row items-center gap-4 w-full">
+                  <div className="flex-1 flex flex-col sm:flex-row items-center gap-4">
+                    <div className="flex flex-col items-center">
+                      <div className="h-10 w-10 bg-gray-200 rounded mb-1 animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                    </div>
+                    <div className="flex flex-col items-center justify-center min-w-[60px]">
+                      <div className="h-4 bg-gray-200 rounded w-8 mb-1 animate-pulse"></div>
+                      <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="h-10 w-10 bg-gray-200 rounded mb-1 animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 min-w-[120px]">
+                    <div className="h-4 bg-gray-200 rounded w-16 mb-1 animate-pulse"></div>
+                    <div className="flex gap-1">
+                      {[...Array(3)].map((_, j) => (
+                        <div key={j} className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredMatches.length === 0 ? (
+            <div className="text-center text-gray-500">No hay partidos para mostrar.</div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {filteredMatches.map(match => {
+                const leagueObj = leagues.find(l => l.name === match.league)
+                const partidoEnVivo = match.status === 'live'
+                const puedeVotar = match.status === 'upcoming'
+                return (
+                  <div key={match.id} className="bg-white rounded-xl shadow p-4 flex flex-col sm:flex-row items-center gap-4 w-full">
+                    <div className="flex-1 flex flex-col sm:flex-row items-center gap-4">
+                      <div className="flex flex-col items-center">
+                        {match.home_logo && (
+                          <Image 
+                            src={match.home_logo} 
+                            alt={match.home_team} 
+                            width={40}
+                            height={40}
+                            className="mb-1" 
+                          />
+                        )}
+                        <span className="font-semibold text-sm text-center">{match.home_team}</span>
+                      </div>
+                      <div className="flex flex-col items-center justify-center min-w-[60px]">
+                        <div className="text-center text-gray-500 font-bold text-lg">vs</div>
+                        <div className="text-center text-xl font-bold mt-1">
+                          {match.home_score !== null && match.away_score !== null
+                            ? `${match.home_score} - ${match.away_score}`
+                            : '--'}
+                        </div>
+                        {partidoEnVivo && (
+                          <div className="text-xs text-green-600 font-semibold mt-1">En juego</div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-center">
+                        {match.away_logo && (
+                          <Image 
+                            src={match.away_logo} 
+                            alt={match.away_team} 
+                            width={40}
+                            height={40}
+                            className="mb-1" 
+                          />
+                        )}
+                        <span className="font-semibold text-sm text-center">{match.away_team}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-2 min-w-[120px]">
+                      <div className="text-xs text-gray-500 mb-1">{new Date(match.match_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      {puedeVotar && (
+                        <div className="flex gap-1">
+                          <button
+                            className={`px-2 py-1 rounded text-xs font-semibold border ${votes[match.id] === 'local' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 border-gray-300'}`}
+                            onClick={() => handleVote(match.id, 'local')}
+                          >
+                            {match.home_team}
+                          </button>
+                          <button
+                            className={`px-2 py-1 rounded text-xs font-semibold border ${votes[match.id] === 'empate' ? 'bg-black text-white border-black' : 'bg-gray-100 border-gray-300'}`}
+                            onClick={() => handleVote(match.id, 'empate')}
+                          >
+                            Empate
+                          </button>
+                          <button
+                            className={`px-2 py-1 rounded text-xs font-semibold border ${votes[match.id] === 'visitante' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 border-gray-300'}`}
+                            onClick={() => handleVote(match.id, 'visitante')}
+                          >
+                            {match.away_team}
+                          </button>
+                        </div>
+                      )}
+                      {leagueObj && (
+                        <div className="flex items-center gap-1 mt-1">
+                          {leagueObj.logo && (
+                            <Image 
+                              src={leagueObj.logo} 
+                              alt={leagueObj.name} 
+                              width={16}
+                              height={16}
+                            />
+                          )}
+                          <span className="text-xs text-gray-500">{leagueObj.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        {/* Columna de ligas */}
+        <aside className="md:w-64 w-full md:sticky md:top-6 md:h-[calc(100vh-48px)]">
+          <div className="bg-white rounded-xl shadow p-4 h-full flex flex-col">
+            <h2 className="text-lg font-bold mb-3">Ligas</h2>
+            {loading ? (
+              <>
+                {/* Desktop: scroll vertical, Mobile: scroll horizontal */}
+                <div className="hidden md:flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+                  <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2">
+                      <div className="h-5 w-5 bg-gray-200 rounded-full animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex md:hidden gap-2 overflow-x-auto pb-2">
+                  <div className="h-10 bg-gray-200 rounded w-20 animate-pulse"></div>
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2">
+                      <div className="h-5 w-5 bg-gray-200 rounded-full animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Desktop: scroll vertical, Mobile: scroll horizontal */}
+                <div className="hidden md:flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+                  <button
+                    className={`flex items-center gap-2 px-3 py-2 rounded ${selectedLeague === null ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                    onClick={() => setSelectedLeague(null)}
+                  >
+                    <span className="whitespace-nowrap">Todas</span>
+                  </button>
+                  {leagues.map(league => (
+                                    <button
+                  key={league.id}
+                  className={`flex items-center gap-2 px-3 py-2 rounded ${selectedLeague === league.id ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                  onClick={() => setSelectedLeague(league.id)}
                 >
-                  {p.LocalTeam.Name}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className={
-                    `transition-all border-2 shadow-none ` +
-                    (predicciones[p.Id] === "empate"
-                      ? "bg-black text-white font-bold"
-                      : " bg-black text-white/70 hover:text-white")
-                  }
-                  onClick={() => handlePrediccion(p.Id, "empate")}
+                  {league.logo && (
+                    <Image 
+                      src={league.logo} 
+                      alt={league.name} 
+                      width={20}
+                      height={20}
+                      className="rounded-full bg-white" 
+                    />
+                  )}
+                  <span className="whitespace-nowrap">{league.name}</span>
+                </button>
+                  ))}
+                </div>
+                <div className="flex md:hidden gap-2 overflow-x-auto pb-2">
+                  <button
+                    className={`flex items-center gap-2 px-3 py-2 rounded ${selectedLeague === null ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                    onClick={() => setSelectedLeague(null)}
+                  >
+                    <span className="whitespace-nowrap">Todas</span>
+                  </button>
+                  {leagues.map(league => (
+                                    <button
+                  key={league.id}
+                  className={`flex items-center gap-2 px-3 py-2 rounded ${selectedLeague === league.id ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                  onClick={() => setSelectedLeague(league.id)}
                 >
-                  Empate
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className={
-                    `transition-all border-2 shadow-none ` +
-                    (predicciones[p.Id] === "visitante"
-                      ? "bg-gray-200 text-blue-700 font-bold"
-                      : "bg-gray-100 text-gray-800 hover:bg-gray-200")
-                  }
-                  onClick={() => handlePrediccion(p.Id, "visitante")}
-                >
-                  {p.AwayTeam.Name}
-                </Button>
-              </form>
-            </li>
-          ))}
-        </ul>
-      )}
+                  {league.logo && (
+                    <Image 
+                      src={league.logo} 
+                      alt={league.name} 
+                      width={20}
+                      height={20}
+                      className="rounded-full bg-white" 
+                    />
+                  )}
+                  <span className="whitespace-nowrap">{league.name}</span>
+                </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </aside>
+      </div>
     </div>
-  );
+  )
 } 

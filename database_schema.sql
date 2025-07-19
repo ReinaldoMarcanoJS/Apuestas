@@ -114,6 +114,24 @@ CREATE TABLE IF NOT EXISTS public.followers (
 );
 
 -- =====================================================
+-- 9. TABLA DE NOTIFICACIONES
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('follow', 'like', 'comment', 'mention')),
+    from_user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Índices para notificaciones
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON public.notifications(is_read);
+
+-- =====================================================
 -- ÍNDICES PARA OPTIMIZAR CONSULTAS
 -- =====================================================
 
@@ -270,6 +288,7 @@ ALTER TABLE public.user_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.followers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para profiles
 CREATE POLICY "Users can view all profiles" ON public.profiles FOR SELECT USING (true);
@@ -312,6 +331,12 @@ CREATE POLICY "Users can delete own comments" ON public.post_comments FOR DELETE
 CREATE POLICY "Users can view all followers" ON public.followers FOR SELECT USING (true);
 CREATE POLICY "Users can create follows" ON public.followers FOR INSERT WITH CHECK (auth.uid() = follower_id);
 CREATE POLICY "Users can delete own follows" ON public.followers FOR DELETE USING (auth.uid() = follower_id);
+
+-- Políticas para notifications
+CREATE POLICY "Users can view own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can update own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own notifications" ON public.notifications FOR DELETE USING (auth.uid() = user_id);
 
 -- =====================================================
 -- DATOS DE EJEMPLO (OPCIONAL)

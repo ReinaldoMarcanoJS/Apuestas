@@ -193,6 +193,7 @@ export interface Database {
           post_id: string
           user_id: string
           content: string
+          parent_comment_id: string | null
           created_at: string
           updated_at: string
         }
@@ -201,6 +202,7 @@ export interface Database {
           post_id: string
           user_id: string
           content: string
+          parent_comment_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -209,8 +211,29 @@ export interface Database {
           post_id?: string
           user_id?: string
           content?: string
+          parent_comment_id?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      comment_likes: {
+        Row: {
+          id: string
+          comment_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          comment_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          comment_id?: string
+          user_id?: string
+          created_at?: string
         }
       }
       followers: {
@@ -233,6 +256,38 @@ export interface Database {
           created_at?: string
         }
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: 'follow' | 'like' | 'comment' | 'mention'
+          from_user_id: string
+          post_id: string | null
+          comment_id: string | null
+          is_read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: 'follow' | 'like' | 'comment' | 'mention'
+          from_user_id: string
+          post_id?: string | null
+          comment_id?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: 'follow' | 'like' | 'comment' | 'mention'
+          from_user_id?: string
+          post_id?: string | null
+          comment_id?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+      }
     }
   }
 }
@@ -244,7 +299,9 @@ export type Prediction = Database['public']['Tables']['predictions']['Row']
 export type UserStats = Database['public']['Tables']['user_stats']['Row']
 export type PostLike = Database['public']['Tables']['post_likes']['Row']
 export type PostComment = Database['public']['Tables']['post_comments']['Row']
+export type CommentLike = Database['public']['Tables']['comment_likes']['Row']
 export type Follower = Database['public']['Tables']['followers']['Row']
+export type Notification = Database['public']['Tables']['notifications']['Row']
 
 // Tipos extendidos con relaciones
 export interface PostWithProfile extends Post {

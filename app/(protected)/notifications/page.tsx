@@ -29,7 +29,10 @@ export default function NotificationsPage() {
     const fetchNotifications = async () => {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       // Traer notificaciones y datos del usuario que generó la acción
       const { data, error } = await supabase
         .from('notifications')
@@ -49,7 +52,6 @@ export default function NotificationsPage() {
     };
     fetchNotifications();
   }, [supabase]);
-
 
   const handleDelete = async (id: string) => {
     await supabase.from('notifications').delete().eq('id', id);
@@ -94,7 +96,7 @@ export default function NotificationsPage() {
               <span className="flex-1 text-sm">
                 {renderText(n)}
                 {n.post_id && (
-                  <Link href={`/posts/${n.post_id}`} className="ml-1 underline text-blue-600">Ver publicación</Link>
+                  <Link href={`/post/${n.post_id}`} className="ml-1 underline text-blue-600">Ver publicación</Link>
                 )}
               </span>
               <span className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString()}</span>

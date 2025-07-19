@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS public.posts (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS public.matches (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    external_id INTEGER UNIQUE, -- ID de la API externa
     home_team TEXT NOT NULL,
     away_team TEXT NOT NULL,
     league TEXT NOT NULL,
@@ -43,6 +44,10 @@ CREATE TABLE IF NOT EXISTS public.matches (
     status TEXT CHECK (status IN ('upcoming', 'live', 'finished')) DEFAULT 'upcoming',
     home_score INTEGER,
     away_score INTEGER,
+    home_logo TEXT,
+    away_logo TEXT,
+    start_timestamp INTEGER,
+    api_status TEXT, -- Status original de la API
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -111,6 +116,27 @@ CREATE TABLE IF NOT EXISTS public.followers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(follower_id, following_id),
     CHECK (follower_id != following_id)
+);
+
+-- =====================================================
+-- TABLA DE LIGAS DE FÚTBOL
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.leagues (
+    id INTEGER PRIMARY KEY, -- ID de la API externa
+    name TEXT NOT NULL,
+    logo TEXT,
+    country TEXT,
+    season INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =====================================================
+-- TABLA DE CONTROL DE PETICIONES A LA API DE FÚTBOL
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.api_football_requests (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    requested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- =====================================================
@@ -287,6 +313,8 @@ ALTER TABLE public.user_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.followers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leagues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.api_football_requests ENABLE ROW LEVEL SECURITY;
 
 -- Eliminar políticas existentes si existen
 DROP POLICY IF EXISTS "Users can view all profiles" ON public.profiles;
@@ -355,6 +383,14 @@ CREATE POLICY "Users can delete own comments" ON public.post_comments FOR DELETE
 CREATE POLICY "Users can view all followers" ON public.followers FOR SELECT USING (true);
 CREATE POLICY "Users can create follows" ON public.followers FOR INSERT WITH CHECK (auth.uid() = follower_id);
 CREATE POLICY "Users can delete own follows" ON public.followers FOR DELETE USING (auth.uid() = follower_id);
+
+-- Políticas para leagues
+CREATE POLICY "Leagues are viewable by everyone" ON public.leagues FOR SELECT USING (true);
+CREATE POLICY "Leagues can be inserted by authenticated users" ON public.leagues FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- Políticas para api_football_requests
+CREATE POLICY "API requests are viewable by everyone" ON public.api_football_requests FOR SELECT USING (true);
+CREATE POLICY "API requests can be inserted by authenticated users" ON public.api_football_requests FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 -- =====================================================
 -- DATOS DE EJEMPLO (OPCIONAL)

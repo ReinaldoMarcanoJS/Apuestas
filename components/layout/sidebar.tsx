@@ -20,15 +20,21 @@ import {
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Profile } from '@/lib/types/database'
-import { PopularMatches } from './popular-matches'
+
 import { useRouter } from 'next/navigation'
 
-export function Sidebar() {
+interface SidebarProps {
+  isMobileModal?: boolean
+  onMobileClose?: () => void
+}
+
+export function Sidebar({ isMobileModal = false, onMobileClose }: SidebarProps) {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [loadingHref, setLoadingHref] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [predictionStats, setPredictionStats] = useState<{ totalPredictions: number; correctPredictions: number; totalPoints: number } | null>(null)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -69,10 +75,23 @@ export function Sidebar() {
     setUnreadCount(count || 0)
   }, [supabase])
 
+  const fetchPredictionStats = useCallback(async () => {
+    try {
+      const response = await fetch('/api/predictions')
+      if (response.ok) {
+        const data = await response.json()
+        setPredictionStats(data.stats)
+      }
+    } catch (error) {
+      console.error('Error cargando estadísticas de predicciones:', error)
+    }
+  }, [])
+
   useEffect(() => {
     getCurrentUser()
     fetchUnreadNotifications()
-  }, [getCurrentUser, fetchUnreadNotifications])
+    fetchPredictionStats()
+  }, [getCurrentUser, fetchUnreadNotifications, fetchPredictionStats])
 
   // Ahora los returns condicionales
   if (pathname.startsWith('/auth/')) {
@@ -83,6 +102,24 @@ export function Sidebar() {
     return null
   }
 
+  if (!profile) {
+    // Skeleton animado del sidebar
+    return (
+      <aside className="w-80 p-4 bg-white rounded-lg shadow space-y-4 h-full min-h-[500px] animate-fade-in">
+        <div className="flex items-center gap-3 animate-pulse">
+          <div className="h-12 w-12 rounded-full bg-gray-300" />
+          <div className="flex-1 h-5 bg-gray-300 rounded" />
+        </div>
+        <div className="h-4 bg-gray-200 rounded w-3/4 mt-2 animate-pulse" />
+        <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
+        <div className="flex flex-col gap-2 mt-4">
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+        </div>
+      </aside>
+    )
+  }
 
   const navigationItems = [
     {
@@ -132,6 +169,10 @@ export function Sidebar() {
   const handleNavigation = (href: string) => {
     setLoadingHref(href)
     router.push(href)
+    // Si está en modo modal móvil, cerrar el modal
+    if (isMobileModal && onMobileClose) {
+      onMobileClose()
+    }
   }
 
   const SidebarContent = () => (
@@ -196,40 +237,38 @@ export function Sidebar() {
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Predicciones</span>
-            <span className="font-medium">0</span>
+            <span className="font-medium">{predictionStats?.totalPredictions || 0}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Aciertos</span>
-            <span className="font-medium">0</span>
+            <span className="font-medium">{predictionStats?.correctPredictions || 0}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Puntos</span>
-            <span className="font-medium">0</span>
+            <span className="font-medium">{predictionStats?.totalPoints || 0}</span>
           </div>
         </div>
       </div>
 
-      {/* Partidos populares y encuestas solo en mobile */}
-      <div className="block lg:hidden p-4 border-t">
-        <PopularMatches />
-      </div>
     </div>
   )
 
   return (
     <>
       {/* Mobile Menu Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="lg:hidden fixed top-4 left-4 z-50"
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-      >
-        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </Button>
+      {!isMobileModal && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="lg:hidden fixed top-4 left-4 z-50"
+          onClick={() => setIsMobileOpen(!isMobileOpen)}
+        >
+          {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
+      )}
 
       {/* Mobile Sidebar */}
-      {isMobileOpen && (
+      {isMobileOpen && !isMobileModal && (
         <div className="lg:hidden fixed inset-0 z-40">
           <div className="fixed inset-0 bg-black/50" onClick={() => setIsMobileOpen(false)} />
           <div className="fixed left-0 top-0 h-full w-64 bg-background border-r">
@@ -239,9 +278,13 @@ export function Sidebar() {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:block fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-64 border-r bg-background">
+      {isMobileModal ? (
         <SidebarContent />
-      </aside>
+      ) : (
+        <aside className="hidden lg:block fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-64 border-r bg-background">
+          <SidebarContent />
+        </aside>
+      )}
     </>
   )
 } 

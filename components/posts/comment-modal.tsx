@@ -75,6 +75,37 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     // Estado para el carrusel de imágenes
     const [currentImg, setCurrentImg] = useState(initialImageIndex);
+    // Estados para el touch
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+    // Configuración del swipe
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e: React.TouchEvent) => {
+      setTouchEnd(null);
+      setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+      setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+      if (!touchStart || !touchEnd) return;
+      
+      const distance = touchStart - touchEnd;
+      const isLeftSwipe = distance > minSwipeDistance;
+      const isRightSwipe = distance < -minSwipeDistance;
+
+      if (isLeftSwipe) {
+        // Deslizar izquierda = siguiente imagen
+        setCurrentImg((prev) => prev === imageUrls.length - 1 ? 0 : prev + 1);
+      }
+      if (isRightSwipe) {
+        // Deslizar derecha = imagen anterior
+        setCurrentImg((prev) => prev === 0 ? imageUrls.length - 1 : prev - 1);
+      }
+    };
 
     // Si cambia el initialImageIndex (por abrir el modal con otra imagen), actualiza el estado
     React.useEffect(() => {
@@ -177,12 +208,18 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                             <div className="mt-2 text-base">{postInfo.content}</div>
                             {/* Carrusel de imágenes en grande debajo del texto */}
                             {Array.isArray(imageUrls) && imageUrls.length > 0 && (
-                              <div className="w-full bg-gray-100 rounded-lg overflow-hidden flex flex-col items-center justify-center relative my-4" style={{ minHeight: '320px', maxHeight: '480px' }}>
+                              <div 
+                                className="w-full bg-gray-100 rounded-lg overflow-hidden flex flex-col items-center justify-center relative my-4" 
+                                style={imageUrls.length > 1 ? { height: '400px', maxHeight: '400px' } : { minHeight: '320px', maxHeight: '480px' }}
+                                onTouchStart={onTouchStart}
+                                onTouchMove={onTouchMove}
+                                onTouchEnd={onTouchEnd}
+                              >
                                 <Image
                                   src={imageUrls[currentImg]}
                                   alt={`Imagen ${currentImg + 1} de la publicación`}
-                                  className="max-w-full h-auto bg-white object-contain"
-                                  style={{ display: 'block', background: 'white', maxHeight: '480px' }}
+                                  className={imageUrls.length > 1 ? "w-full h-full bg-white object-contain" : "max-w-full h-auto bg-white object-contain"}
+                                  style={{ display: 'block', background: 'white' }}
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none'
                                   }}
@@ -193,7 +230,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                   <>
                                     <button
                                       type="button"
-                                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
+                                      className="hidden sm:block absolute left-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
                                       onClick={e => { e.stopPropagation(); setCurrentImg((prev) => prev === 0 ? imageUrls.length - 1 : prev - 1) }}
                                       aria-label="Anterior"
                                     >
@@ -201,7 +238,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                     </button>
                                     <button
                                       type="button"
-                                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
+                                      className="hidden sm:block absolute right-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
                                       onClick={e => { e.stopPropagation(); setCurrentImg((prev) => prev === imageUrls.length - 1 ? 0 : prev + 1) }}
                                       aria-label="Siguiente"
                                     >

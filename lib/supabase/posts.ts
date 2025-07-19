@@ -191,34 +191,23 @@ export async function getPost(postId: string): Promise<PostWithProfile | null> {
 // Esta función ahora retorna un objeto con éxito y la cantidad actualizada de likes.
 // Explicación en español: Ahora, después de insertar el like, se hace una consulta para contar los likes actuales del post y se retorna ese número junto con el resultado de éxito.
 
-export async function likePost(post: PostWithProfile, userId: string): Promise<{ success: boolean, likesCount: number }> {
+export async function likePost(post: PostWithProfile, userId: string): Promise<{ success: boolean; likesCount: number }> {
   const supabase = createClient()
-  let likesCount = 0
-
-  // Insertar el like
+  
   const { error } = await supabase
     .from('post_likes')
-    .insert({ post_id: post.id, user_id: userId })
+    .insert({
+      post_id: post.id,
+      user_id: userId
+    })
 
-  // Crear notificación de like
-  // Usar el user_id del post recibido
-  if (post && post.user_id !== userId) {
-    await supabase
-      .from('notifications')
-      .insert({
-        user_id: post.user_id,
-        type: 'like',
-        from_user_id: userId,
-        post_id: post.id
-      })
-  }
-
-  // Obtener la cantidad actualizada de likes para el post
+  // Obtener el conteo actualizado de likes
   const { count, error: countError } = await supabase
     .from('post_likes')
     .select('id', { count: 'exact', head: true })
     .eq('post_id', post.id)
 
+  let likesCount = 0
   if (!countError && typeof count === 'number') {
     likesCount = count
   } else {
@@ -229,7 +218,20 @@ export async function likePost(post: PostWithProfile, userId: string): Promise<{
     console.error('Error al dar like al post:', error)
     return { success: false, likesCount }
   }
-  console.log( "likesCount",likesCount);
+ 
+   // Crear notificación de like si no es el propio usuario
+   if (post.user_id !== userId) {
+     await supabase
+       .from('notifications')
+       .insert({
+         user_id: post.user_id,
+         type: 'like',
+         from_user_id: userId,
+         post_id: post.id
+       })
+   }
+ 
+ console.log( "likesCount",likesCount);
   return { success: true, likesCount }
 }
 
@@ -272,13 +274,14 @@ export async function isPostLiked(postId: string, userId: string): Promise<boole
   return !!data
 } 
 
-// Obtener comentarios de un post
+// Obtener comentarios principales de un post (sin respuestas)
 export async function getPostComments(postId: string): Promise<Array<{ id: string; content: string; created_at: string; user: { username: string; display_name: string; avatar_url: string | null } }>> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('post_comments')
     .select('id, content, created_at, user: user_id (username, display_name, avatar_url)')
     .eq('post_id', postId)
+    .is('parent_comment_id', null)
     .order('created_at', { ascending: true })
   if (error) {
     console.error('Error fetching comments:', error)
@@ -299,28 +302,49 @@ export async function getPostComments(postId: string): Promise<Array<{ id: strin
 }
 
 // Agregar un comentario a un post
-export async function addPostComment(postId: string, userId: string, content: string): Promise<{ id: string; content: string; created_at: string; user: { username: string; display_name: string; avatar_url: string | null } } | null> {
+export async function addPostComment(postId: string, userId: string, content: string): Promise<{
+  id: string;
+  content: string;
+  created_at: string;
+  user: { username: string; display_name: string; avatar_url: string | null };
+} | null> {
   const supabase = createClient()
+  
   const { data, error } = await supabase
     .from('post_comments')
-    .insert({ post_id: postId, user_id: userId, content })
-    .select('id, content, created_at, user: user_id (username, display_name, avatar_url)')
+    .insert({
+      post_id: postId,
+      user_id: userId,
+      content: content
+    })
+    .select('*, user:user_id(username, display_name, avatar_url)')
     .single()
+
   if (error) {
     console.error('Error adding comment:', error)
     return null
   }
-  return {
-    ...data,
-    user: (() => {
-      const user = Array.isArray(data.user) ? data.user[0] : data.user;
-      return {
-        username: user?.username,
-        display_name: user?.display_name || user?.username,
-        avatar_url: user?.avatar_url
-      }
-    })()
+
+  // Obtener información del post para crear notificación
+  const { data: postData } = await supabase
+    .from('posts')
+    .select('user_id')
+    .eq('id', postId)
+    .single()
+ 
+  // Crear notificación de comentario si no es el propio usuario
+  if (postData && postData.user_id !== userId) {
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: postData.user_id,
+        type: 'comment',
+        from_user_id: userId,
+        post_id: postId
+      })
   }
+
+  return data
 } 
 
 // Obtener usuarios que dieron like a un post
@@ -439,19 +463,52 @@ export async function getCommentReplies(commentId: string): Promise<Array<{ id: 
 // Agregar una respuesta a un comentario
 export async function addCommentReply(parentCommentId: string, postId: string, userId: string, content: string): Promise<{ id: string; content: string; created_at: string; user: { username: string; display_name: string; avatar_url: string | null }, parent_comment_id: string | null } | null> {
   const supabase = createClient()
-  const { data, error } = await supabase
+  
+  console.log('Attempting to add comment reply with:', { parentCommentId, postId, userId, content })
+  
+  // Primero intentar solo insertar sin select para ver si el problema está en la inserción
+  const { data: insertData, error: insertError } = await supabase
     .from('post_comments')
-    .insert({ parent_comment_id: parentCommentId, post_id: postId, user_id: userId, content })
-    .select('id, content, created_at, user: user_id (username, display_name, avatar_url), parent_comment_id')
+    .insert({ 
+      parent_comment_id: parentCommentId, 
+      post_id: postId, 
+      user_id: userId, 
+      content: content 
+    })
+    .select('id')
     .single()
-  if (error) {
-    console.error('Error adding comment reply:', error)
+    
+  if (insertError) {
+    console.error('Error inserting comment reply:', insertError)
+    console.error('Error details:', {
+      message: insertError.message,
+      details: insertError.details,
+      hint: insertError.hint,
+      code: insertError.code
+    })
     return null
   }
+  
+  console.log('Comment reply inserted successfully, ID:', insertData.id)
+  
+  // Ahora obtener los datos completos
+  const { data: fullData, error: selectError } = await supabase
+    .from('post_comments')
+    .select('id, content, created_at, user: user_id (username, display_name, avatar_url), parent_comment_id')
+    .eq('id', insertData.id)
+    .single()
+    
+  if (selectError) {
+    console.error('Error selecting comment reply:', selectError)
+    return null
+  }
+  
+  console.log('Comment reply data retrieved:', fullData)
+  
   return {
-    ...data,
+    ...fullData,
     user: (() => {
-      const user = Array.isArray(data.user) ? data.user[0] : data.user;
+      const user = Array.isArray(fullData.user) ? fullData.user[0] : fullData.user;
       return {
         username: user?.username,
         display_name: user?.display_name || user?.username,

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Heart, MessageCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react'
-import { likePost, unlikePost, isPostLiked, deletePost, getPost, getPostComments, addPostComment, getPostLikes } from '@/lib/supabase/posts'
+import { likePost, unlikePost, isPostLiked, deletePost, getPostComments, addPostComment, getPostLikes } from '@/lib/supabase/posts'
 import Link from 'next/link'
 import {
   DropdownMenu,
@@ -44,7 +44,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) {
-  const [isLiked, setIsLiked] = useState(false)
+  const [isLiked, setIsLiked] = useState<boolean | null>(null) // null = loading, true/false = loaded
   const [likesCount, setLikesCount] = useState(post._count?.post_likes || 0)
   const [isLoading, setIsLoading] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -59,6 +59,37 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
 
   // Estado para el carrusel de imágenes
   const [currentImg, setCurrentImg] = useState(0)
+  // Estados para el touch
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  // Configuración del swipe
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe) {
+      // Deslizar izquierda = siguiente imagen
+      setCurrentImg((prev) => prev === post.image_urls.length - 1 ? 0 : prev + 1);
+    }
+    if (isRightSwipe) {
+      // Deslizar derecha = imagen anterior
+      setCurrentImg((prev) => prev === 0 ? post.image_urls.length - 1 : prev - 1);
+    }
+  };
 
   const checkCurrentUser = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -69,46 +100,51 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
     checkCurrentUser();
   }, [post.id, checkCurrentUser]);
 
+  const checkLikeStatus = useCallback(async () => {
+    if (!currentUserId) return
+    
+    try {
+      const liked = await isPostLiked(post.id, currentUserId)
+      setIsLiked(liked)
+    } catch (error) {
+      console.error('Error checking like status:', error)
+      setIsLiked(false) // En caso de error, asumir que no está liked
+    }
+  }, [currentUserId, post.id])
+
   useEffect(() => {
     if (currentUserId) {
       checkLikeStatus();
+    } else {
+      // Si no hay usuario, resetear el estado
+      setIsLiked(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId, post.id]);
+  }, [currentUserId, post.id, checkLikeStatus]);
 
-  const checkLikeStatus = async () => {
-    if (!currentUserId) return
-    
-    const liked = await isPostLiked(post.id, currentUserId)
-    setIsLiked(liked)
-  }
 
-  const reloadPost = async () => {
-    const freshPost = await getPost(post.id);
-    if (freshPost) {
-      setLikesCount(freshPost._count?.post_likes || 0);
-      // Si quieres actualizar más campos, agrégalos aquí
-    }
-  };
 
   const handleLike = async () => {
-    if (!currentUserId) return
+    if (!currentUserId || isLiked === null) return
 
+    // Actualizar estado inmediatamente para mejor UX
+    const newLikedState = !isLiked
+    const newLikesCount = newLikedState ? likesCount + 1 : likesCount - 1
+    
+    setIsLiked(newLikedState)
+    setLikesCount(newLikesCount)
     setIsLoading(true)
+    
     try {
-      if (isLiked) {
-        setLikesCount(prev => prev - 1); // Actualiza localmente
-        setIsLiked(false)
-        await unlikePost(post.id, currentUserId)
-      } else {
-        setLikesCount(prev => prev + 1); // Actualiza localmente
-        setIsLiked(true)
+      if (newLikedState) {
         await likePost(post, currentUserId)
+      } else {
+        await unlikePost(post.id, currentUserId)
       }
-      // Sincroniza con la base de datos en segundo plano
-      reloadPost();
     } catch (error) {
       console.error('Error toggling like:', error)
+      // Revertir cambios si hay error
+      setIsLiked(!newLikedState)
+      setLikesCount(newLikedState ? likesCount : likesCount + 1)
     } finally {
       setIsLoading(false)
     }
@@ -238,7 +274,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
     <Card className="w-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center ">
             <Link href={`/profile/${post.profiles.username}`}>
               <Avatar className="h-10 w-10 cursor-pointer hover:opacity-80 transition-opacity">
                 <AvatarImage src={post.profiles.avatar_url || ''} alt={post.profiles.display_name} />
@@ -279,16 +315,16 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4" onClick={handleOpenComments} style={{ cursor: 'pointer' }}>
+      <CardContent className="space-y-4 p-0" onClick={handleOpenComments} style={{ cursor: 'pointer' }}>
         {/* Content */}
         <div className="space-y-3">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap px-3">{post.content}</p>
           
           {/* Imagen o carrusel de imágenes */}
           {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
             <div
-              className="w-full bg-gray-100 rounded-lg overflow-hidden flex flex-col items-center justify-center relative cursor-pointer"
-              style={{ minHeight: '220px' }}
+              className="w-full bg-gray-100 rounded-lg overflow-hidden flex flex-col items-center justify-center relative cursor-pointer max-w-full"
+              style={post.image_urls.length > 1 ? { height: '320px', maxHeight: '320px' } : { minHeight: '220px' }}
               onClick={handleOpenComments}
             >
               <Image
@@ -296,17 +332,20 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
                 alt={`Imagen ${currentImg + 1} de la publicación`}
                 width={800} // Puedes ajustar este valor según el tamaño real de tus imágenes
                 height={600} // Puedes ajustar este valor según el tamaño real de tus imágenes
-                className="w-full h-auto bg-white object-cover"
+                className={post.image_urls.length > 1 ? "w-full h-full bg-white object-contain max-w-full" : "w-full h-auto bg-white object-contain max-w-full"}
                 style={{ display: 'block', background: 'white' }}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none'
                 }}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
               />
               {post.image_urls.length > 1 && (
                 <>
                   <button
                     type="button"
-                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
+                    className="hidden sm:block absolute left-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
                     onClick={e => { e.stopPropagation(); setCurrentImg((prev) => prev === 0 ? post.image_urls.length - 1 : prev - 1) }}
                     aria-label="Anterior"
                   >
@@ -314,7 +353,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
                   </button>
                   <button
                     type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
+                    className="hidden sm:block absolute right-2 top-1/2 -translate-y-1/2 bg-white bg-opacity-70 rounded-full p-1 shadow hover:bg-opacity-100 transition"
                     onClick={e => { e.stopPropagation(); setCurrentImg((prev) => prev === post.image_urls.length - 1 ? 0 : prev + 1) }}
                     aria-label="Siguiente"
                   >
@@ -332,7 +371,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
         </div>
 
         {/* Stats */}
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex items-center justify-between text-sm text-muted-foreground px-3">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1">
               <Heart className="h-4 w-4" />
@@ -346,19 +385,19 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
         </div>
 
         {/* Actions */}
-        <div className="flex space-x-2 pt-2 border-t" onClick={e => e.stopPropagation()}>
+        <div className="flex gap-2 border-t " onClick={e => e.stopPropagation()}>
           <Button
             variant={isLiked ? "default" : "ghost"}
-            size="sm"
+            size="lg"
             onClick={handleLike}
-            disabled={isLoading}
+            disabled={isLoading || isLiked === null}
             className="flex-1"
           >
-            <Heart className={`h-4 w-4 mr-2 ${isLiked ? 'fill-current' : ''}`} />
-            {isLiked ? 'Me gusta' : 'Me gusta'}
+            <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+            {isLiked === null ? 'Cargando...' : (isLiked ? 'Me gusta' : 'Me gusta')}
           </Button>
-          <Button variant="ghost" size="sm" className="flex-1" onClick={handleOpenCommentInput}>
-            <MessageCircle className="h-4 w-4 mr-2" />
+          <Button variant="ghost" size="lg" className="flex-1" onClick={handleOpenCommentInput}>
+            <MessageCircle className="h-4 w-4" />
             Comentar
           </Button>
         </div>
