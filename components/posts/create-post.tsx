@@ -9,6 +9,7 @@ import { Image as LucideImage, Send, Loader2} from 'lucide-react'
 import { createPost } from '@/lib/supabase/posts'
 import { useRef } from 'react'
 import Image from 'next/image'
+import { useUser } from '@/components/user-context'
 
 interface CreatePostProps {
   onPostCreated?: () => void
@@ -16,6 +17,7 @@ interface CreatePostProps {
 }
 
 export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compartir hoy?" }: CreatePostProps) {
+  const { user } = useUser();
   const [content, setContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -37,7 +39,6 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
     setError('')
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuario no autenticado')
 
       const post = await createPost({
@@ -92,7 +93,6 @@ export function CreatePost({ onPostCreated, placeholder = "¿Qué quieres compar
     const newUrls: string[] = []
     const newPreviews: string[] = []
     try {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuario no autenticado')
       for (const file of files) {
         // Previsualización local

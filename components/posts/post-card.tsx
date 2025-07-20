@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { PostWithProfile } from '@/lib/types/database'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -18,6 +17,7 @@ import {
 import { CommentModal } from './comment-modal'
 import { LikesModal } from './likes-modal'
 import Image from 'next/image'
+import { useUser } from '@/components/user-context'
 
 interface CommentUser {
   username: string;
@@ -44,10 +44,10 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) {
+  const { user } = useUser();
   const [isLiked, setIsLiked] = useState<boolean | null>(null) // null = loading, true/false = loaded
   const [likesCount, setLikesCount] = useState(post._count?.post_likes || 0)
   const [isLoading, setIsLoading] = useState(false)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false)
   const [comments, setComments] = useState<Comment[]>([])
   const [isLikesModalOpen, setIsLikesModalOpen] = useState(false)
@@ -55,7 +55,6 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
   const [showInlineCommentInput, setShowInlineCommentInput] = useState(false)
   const [inlineComment, setInlineComment] = useState("")
   const [inlineLoading, setInlineLoading] = useState(false)
-  const supabase = createClient()
 
   // Estado para el carrusel de imágenes
   const [currentImg, setCurrentImg] = useState(0)
@@ -91,14 +90,12 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
     }
   };
 
-  const checkCurrentUser = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setCurrentUserId(user?.id || null)
-  }, [supabase])
+  // Usar el id del usuario del contexto
+  const currentUserId = user?.id || null;
 
   useEffect(() => {
-    checkCurrentUser();
-  }, [post.id, checkCurrentUser]);
+    // checkCurrentUser(); // Eliminado
+  }, [post.id]); // Eliminado
 
   const checkLikeStatus = useCallback(async () => {
     if (!currentUserId) return
@@ -106,6 +103,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
     try {
       const liked = await isPostLiked(post.id, currentUserId)
       setIsLiked(liked)
+      console.log('liked', liked)
     } catch (error) {
       console.error('Error checking like status:', error)
       setIsLiked(false) // En caso de error, asumir que no está liked

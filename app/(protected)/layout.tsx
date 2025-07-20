@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { AuthRedirect } from '@/components/auth-redirect'
+import { UserProvider } from '@/components/user-context'
 
 export default async function ProtectedLayout({
   children,
@@ -20,7 +21,7 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <>
+    <UserProvider>
       <AuthRedirect />
       <Header />
       <div className="flex flex-col lg:flex-row w-full min-h-screen">
@@ -31,6 +32,6 @@ export default async function ProtectedLayout({
           {children}
         </main>
       </div>
-    </>
+    </UserProvider>
   )
 } 

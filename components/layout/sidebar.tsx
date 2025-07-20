@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -15,13 +15,15 @@ import {
   Menu,
   X,
   Loader2,
-  Bell
+  Bell,
+  LogOut
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Profile } from '@/lib/types/database'
 
 import { useRouter } from 'next/navigation'
+import { useUser } from '@/components/user-context'
 
 interface SidebarProps {
   isMobileModal?: boolean
@@ -29,12 +31,11 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isMobileModal = false, onMobileClose }: SidebarProps) {
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
+  const { user, loading } = useUser();
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [loadingHref, setLoadingHref] = useState<string | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
-  const [predictionStats, setPredictionStats] = useState<{ totalPredictions: number; correctPredictions: number; totalPoints: number } | null>(null)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -46,59 +47,35 @@ export function Sidebar({ isMobileModal = false, onMobileClose }: SidebarProps) 
     }
   }, [pathname, loadingHref]);
 
-  const getCurrentUser = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUser(user)
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-        setProfile(profile)
-        console.log(profile)
-      }
-    } catch (error) {
-      console.error('Error checking user:', error)
-    }
-  }, [supabase])
-
-  const fetchUnreadNotifications = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('is_read', false)
-    setUnreadCount(count || 0)
-  }, [supabase])
-
-  const fetchPredictionStats = useCallback(async () => {
-    try {
-      const response = await fetch('/api/predictions')
-      if (response.ok) {
-        const data = await response.json()
-        setPredictionStats(data.stats)
-      }
-    } catch (error) {
-      console.error('Error cargando estadísticas de predicciones:', error)
-    }
-  }, [])
-
+  // Obtener perfil solo si hay usuario
   useEffect(() => {
-    getCurrentUser()
-    fetchUnreadNotifications()
-    fetchPredictionStats()
-  }, [getCurrentUser, fetchUnreadNotifications, fetchPredictionStats])
+    if (user) {
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => setProfile(data))
+    }
+  }, [user, supabase])
 
-  // Ahora los returns condicionales
+  // Notificaciones solo si hay usuario
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+        .then(({ count }) => setUnreadCount(count || 0))
+    }
+  }, [user, supabase])
+
   if (pathname.startsWith('/auth/')) {
     return null
   }
 
-  if (!user) {
+  if (loading || !user) {
     return null
   }
 
@@ -175,13 +152,18 @@ export function Sidebar({ isMobileModal = false, onMobileClose }: SidebarProps) 
     }
   }
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/auth/login');
+  }
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* User Profile Section */}
       <div className="p-4 border-b">
         <Link href={`/profile/${profile?.username}`} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted transition-colors">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={profile?.avatar_url || ''} alt={profile?.display_name || user.email} />
+            <AvatarImage src={profile?.avatar_url || ''} alt={profile?.display_name || user.email} className='object-cover'/>
             <AvatarFallback>
               {profile?.display_name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
             </AvatarFallback>
@@ -232,23 +214,11 @@ export function Sidebar({ isMobileModal = false, onMobileClose }: SidebarProps) 
         })}
       </nav>
 
-      {/* Quick Stats */}
-      <div className="p-4 border-t">
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Predicciones</span>
-            <span className="font-medium">{predictionStats?.totalPredictions || 0}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Aciertos</span>
-            <span className="font-medium">{predictionStats?.correctPredictions || 0}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Puntos</span>
-            <span className="font-medium">{predictionStats?.totalPoints || 0}</span>
-          </div>
-        </div>
-      </div>
+      {/* Sign Out Button */}
+      <Button onClick={handleSignOut} variant="outline" className="w-full mt-8 flex items-center justify-center gap-2">
+        <LogOut className="h-4 w-4" />
+        Cerrar sesión
+      </Button>
 
     </div>
   )

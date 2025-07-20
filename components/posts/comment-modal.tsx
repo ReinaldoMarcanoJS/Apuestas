@@ -9,6 +9,7 @@ import { likeComment, unlikeComment, isCommentLiked, getCommentLikesCount, getCo
 import { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image'
+import { useUser } from '@/components/user-context'
 
 interface CommentUser {
   username: string;
@@ -64,6 +65,7 @@ function formatRelativeDate(dateString: string) {
 }
 
 export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comments, onAddComment, postInfo, onShowLikes, imageUrls = [], initialImageIndex = 0 }) => {
+    const { user } = useUser();
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(false);
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
     const [commentLiked, setCommentLiked] = useState<{ [key: string]: boolean }>({});
     const [replies, setReplies] = useState<{ [key: string]: Comment[] }>({});
     const [replyLoading, setReplyLoading] = useState(false);
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const currentUserId = user?.id || null;
     // Estado para el carrusel de imágenes
     const [currentImg, setCurrentImg] = useState(initialImageIndex);
     // Estados para el touch
@@ -113,17 +115,6 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
     }, [initialImageIndex, open]);
 
     useEffect(() => {
-        // Obtener usuario actual (puedes optimizar esto si ya lo tienes en contexto)
-        const getUser = async () => {
-            const supabase = (await import('@/lib/supabase/client')).createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            setCurrentUserId(user?.id || null);
-        };
-        getUser();
-    }, []);
-
-    useEffect(() => {
-        if (!open) return;
         // Cargar likes y si el usuario ya le dio like a cada comentario
         comments.forEach(async (comment) => {
             const [likes, liked] = await Promise.all([

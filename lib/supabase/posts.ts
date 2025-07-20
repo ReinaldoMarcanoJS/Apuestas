@@ -254,23 +254,21 @@ export async function unlikePost(postId: string, userId: string): Promise<boolea
 
 export async function isPostLiked(postId: string, userId: string): Promise<boolean> {
   const supabase = createClient()
-  
   const { data, error } = await supabase
     .from('post_likes')
     .select('id')
     .eq('post_id', postId)
     .eq('user_id', userId)
     .single()
-
   if (error && error.code === 'PGRST116') {
+    // No mostrar error, simplemente no hay like
     return false
   }
-
   if (error) {
+    // Solo mostrar error si es otro caso
     console.error('Error checking if post is liked:', error)
     return false
   }
-
   return !!data
 } 
 

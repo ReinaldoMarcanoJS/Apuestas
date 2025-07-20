@@ -10,41 +10,33 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Edit, Trophy, Target, Users, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import { EditProfileModal } from './edit-profile-modal'
+import { useUser } from '@/components/user-context'
+import Image from 'next/image'
 
 interface ProfileCardProps {
   profile: ProfileWithStats | Profile
 }
 
 export function ProfileCard({ profile }: ProfileCardProps) {
+  const { user } = useUser();
   const [isFollowing, setIsFollowing] = useState(false)
   const [followersCount, setFollowersCount] = useState(0)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [profileData, setProfileData] = useState(profile)
   const supabase = createClient()
-
-  const getCurrentUser = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setCurrentUserId(user?.id || null)
-  }, [supabase])
-
-  useEffect(() => {
-    getCurrentUser()
-  }, [getCurrentUser])
+  const currentUserId = user?.id || null;
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
 
   const checkFollowStatus = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
     const { data } = await supabase
       .from('followers')
       .select('id')
       .eq('follower_id', user.id)
       .eq('following_id', profile.id)
       .single()
-
     setIsFollowing(!!data)
-  }, [supabase, profile.id])
+  }, [supabase, profile.id, user])
 
   const loadFollowCounts = useCallback(async () => {
     // Followers count
@@ -52,27 +44,18 @@ export function ProfileCard({ profile }: ProfileCardProps) {
       .from('followers')
       .select('*', { count: 'exact', head: true })
       .eq('following_id', profile.id)
-
-    // Following count
-    await supabase
-      .from('followers')
-      .select('*', { count: 'exact', head: true })
-      .eq('follower_id', profile.id)
-
     setFollowersCount(followers || 0)
   }, [supabase, profile.id])
 
   useEffect(() => {
     if (currentUserId && profile.id !== currentUserId) {
       checkFollowStatus()
-  }
+    }
     loadFollowCounts()
   }, [profile.id, currentUserId, checkFollowStatus, loadFollowCounts])
 
   const handleFollow = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
     if (isFollowing) {
       await supabase
         .from('followers')
@@ -124,12 +107,22 @@ export function ProfileCard({ profile }: ProfileCardProps) {
       <CardHeader className="relative">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={profileData.avatar_url || ''} alt={profileData.display_name} />
-              <AvatarFallback className="text-lg">
-                {profileData.display_name.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-20 w-20 cursor-pointer" onClick={() => setShowAvatarModal(true)}>
+                <AvatarImage src={profileData.avatar_url || ''} alt={profileData.display_name} className="object-cover" />
+                <AvatarFallback className="text-lg">
+                  {profileData.display_name.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {showAvatarModal && profileData.avatar_url && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setShowAvatarModal(false)}>
+                  <div className="bg-white rounded-lg p-4 shadow-lg relative max-w-full max-h-full flex flex-col items-center">
+                    <button className="absolute top-2 right-2 text-2xl font-bold text-gray-700 hover:text-black" onClick={() => setShowAvatarModal(false)}>&times;</button>
+                    <Image src={profileData.avatar_url} alt={profileData.display_name} width={400} height={400} className="rounded-lg object-contain max-h-[80vh] max-w-[90vw]" />
+                  </div>
+                </div>
+              )}
+            </div>
             <div>
               <h1 className="text-2xl font-bold">{profileData.display_name}</h1>
               <p className="text-muted-foreground">@{profileData.username}</p>

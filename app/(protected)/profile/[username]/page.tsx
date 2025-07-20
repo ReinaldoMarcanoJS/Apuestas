@@ -4,7 +4,6 @@ import { getProfileWithStats } from '@/lib/supabase/profiles'
 import { ProfileWithStats } from '@/lib/types/database'
 import { ProfileCard } from '@/components/profile/profile-card'
 import { PostsFeed } from '@/components/posts/posts-feed'
-import { PopularMatches } from "@/components/layout/popular-matches";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
@@ -214,8 +213,8 @@ export default function ProfilePage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8">
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-       <div className="w-full flex-1">
+      <div className="flex flex-col items-center justify-center lg:flex-row gap-4 lg:gap-6">
+       <div className="max-w-2xl flex-1">
        <div className="mb-8">
           <ProfileCard profile={profile} />
         </div>
@@ -332,11 +331,6 @@ export default function ProfilePage() {
           <PostsFeed userId={profile.id} showCreatePost={false} />
         </div>
        </div>
-
-           {/* Panel derecho solo en desktop */}
-      <div className="hidden lg:block w-80 flex-shrink-0">
-        <PopularMatches />
-      </div>
       </div>
     </div>
   )

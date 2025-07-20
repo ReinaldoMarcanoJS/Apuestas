@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,86 +17,56 @@ import { Search, Settings, LogOut, User, Menu, X } from 'lucide-react'
 import { Bell } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Profile } from '@/lib/types/database'
-import { User as SupabaseUser } from '@supabase/supabase-js'
 import { Sidebar } from './sidebar'
 import { createPortal } from 'react-dom'
 import { Notification } from '@/lib/types/database'
+import { useUser } from '@/components/user-context'
 
 export function Header() {
-  const [user, setUser] = useState<SupabaseUser | null>(null)
+  const { user, loading } = useUser();
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [, setUnreadNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const supabase = createClient()
   const router = useRouter()
-  const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const fetchUnreadNotifications = useCallback(async () => {
-    if (!user) return
-    
-    console.log('Fetching unread notifications for user:', user.id)
-    
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_read', false)
-      .order('created_at', { ascending: false })
-    
-    if (error) {
-      console.error('Error fetching unread notifications:', error)
-    } else {
-      console.log('Unread notifications fetched:', data)
-      setUnreadNotifications(data || [])
-      setUnreadCount(data ? data.length : 0)
-    }
-  }, [supabase, user])
-
-  const checkUser = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUser(user)
-        // Cargar perfil del usuario
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-        setProfile(profile)
-      }
-    } catch (error) {
-      console.error('Error checking user:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [supabase]);
-
-  // No mostrar header en páginas de auth
-  const isAuthPage = pathname.startsWith('/auth/')
-
-  useEffect(() => {
-    if (!isAuthPage) {
-      checkUser()
-    }
-  }, [checkUser, isAuthPage])
-
+  // Obtener perfil solo si hay usuario
   useEffect(() => {
     if (user) {
-      fetchUnreadNotifications()
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => setProfile(data))
     }
-  }, [user, fetchUnreadNotifications])
+  }, [user, supabase])
+
+  // Notificaciones solo si hay usuario
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => {
+          setUnreadNotifications(data || [])
+          setUnreadCount(data ? data.length : 0)
+        })
+    }
+  }, [user, supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/auth/login')
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center">

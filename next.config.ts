@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'aklfmezskcxxyhjulmpy.supabase.co',
+
+      },
+      {
+        protocol: 'https',
+        hostname: 'media.api-sports.io',
       },
     ],
   },
