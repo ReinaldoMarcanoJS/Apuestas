@@ -20,9 +20,14 @@ function mapStatus(apiStatus: string): 'upcoming' | 'live' | 'finished' {
 const REQUEST_LIMIT_PER_DAY = 100;
 const MIN_INTERVAL_MINUTES = 15;
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const today = getTodayDateString();
+
+  // Leer paginación de la query
+  const { searchParams } = new URL(request.url);
+  const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 100);
 
   // 0. Verificar cuántas peticiones se han hecho hoy
   const { data: requestsToday, error: reqError } = await supabase
@@ -38,12 +43,14 @@ export async function GET() {
     ? new Date(requestsToday[requestsToday.length - 1].requested_at)
     : null;
 
-  // 1. Buscar partidos del día en la base de datos
+  // 1. Buscar partidos del día en la base de datos (con paginación)
   const { data: matches, error: matchesError } = await supabase
     .from('matches')
     .select('*')
     .gte('match_date', today + 'T00:00:00Z')
-    .lt('match_date', today + 'T23:59:59Z');
+    .lt('match_date', today + 'T23:59:59Z')
+    .order('match_date', { ascending: true })
+    .range(offset, offset + limit - 1);
 
   // 2. Buscar ligas del día en la base de datos
   const { data: leagues, error: leaguesError } = await supabase
@@ -66,14 +73,23 @@ export async function GET() {
     }
   }
 
+  // Si hay datos en la base de datos, respóndelos rápido y pon cache HTTP
+  if (matches && matches.length > 0) {
+    const res = NextResponse.json({ step: 'db_cache', matches, leagues, requestsCount, lastRequest });
+    res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    return res;
+  }
+
   if (!canRequest) {
-    // Solo usar la base de datos
-    return NextResponse.json({ step: 'db_cache', matches, leagues, requestsCount, lastRequest });
+    // No se puede hacer fetch externo y no hay datos
+    const res = NextResponse.json({ step: 'db_cache_empty', matches: [], leagues, requestsCount, lastRequest });
+    res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    return res;
   }
 
   // 4. Si se puede hacer petición, primero borrar partidos y ligas viejos
-  await supabase.from('matches').delete().neq('id', '');
-  await supabase.from('leagues').delete().neq('id', '');
+  // await supabase.from('matches').delete().neq('id', ''); // Eliminado
+  // await supabase.from('leagues').delete().neq('id', ''); // Eliminado
 
   // 5. Hacer petición a la API externa
   const apiKey = process.env.FOOTBALL_API_KEY || '9a0913f697bcaf1fb594b9bbd41be687';
@@ -156,12 +172,14 @@ export async function GET() {
   // Registrar la petición
   await supabase.from('api_football_requests').insert({});
 
-  // Consultar de nuevo para devolver los datos guardados
+  // Al final, después de guardar, consulta de nuevo con paginación
   const { data: savedMatches, error: savedMatchesError } = await supabase
     .from('matches')
     .select('*')
     .gte('match_date', today + 'T00:00:00Z')
-    .lt('match_date', today + 'T23:59:59Z');
+    .lt('match_date', today + 'T23:59:59Z')
+    .order('match_date', { ascending: true })
+    .range(offset, offset + limit - 1);
   const { data: savedLeagues, error: savedLeaguesError } = await supabase
     .from('leagues')
     .select('*');
@@ -170,9 +188,7 @@ export async function GET() {
     return NextResponse.json({ step: 'final_query', error: 'Error consultando partidos/ligas guardados', details: savedMatchesError?.message || savedLeaguesError?.message }, { status: 500 });
   }
 
-  if (!savedMatches || savedMatches.length === 0) {
-    return NextResponse.json({ step: 'no_matches_saved', error: 'No se guardaron partidos', apiMatches, rawApi: data }, { status: 500 });
-  }
-
-  return NextResponse.json({ step: 'success', matches: savedMatches, leagues: savedLeagues, requestsCount: requestsCount + 1 });
+  const res = NextResponse.json({ step: 'success', matches: savedMatches, leagues: savedLeagues, requestsCount: requestsCount + 1 });
+  res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  return res;
 } 

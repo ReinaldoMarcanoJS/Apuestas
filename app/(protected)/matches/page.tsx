@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
 import Image from 'next/image'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
 
 interface League {
   id: number
@@ -39,16 +40,49 @@ export default function MatchesPage() {
   const [selectedLeague, setSelectedLeague] = useState<number | null>(null)
   const [votes, setVotes] = useState<Record<string, 'local' | 'empate' | 'visitante'>>({})
   const [statusFilter, setStatusFilter] = useState<'upcoming' | 'live' | 'finished' | null>(null)
+  const [offset, setOffset] = useState(0)
+  const limit = 20
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [timeoutError, setTimeoutError] = useState(false)
 
+  // Fetch inicial y cuando cambia la liga o el filtro
   useEffect(() => {
-    fetch('/api/football-matches')
+    setLoading(true)
+    setOffset(0)
+    fetch(`/api/football-matches?offset=0&limit=${limit}`)
       .then(res => res.json())
       .then(data => {
         setMatches(data.matches || [])
         setLeagues(data.leagues || [])
+        setHasMore((data.matches || []).length === limit)
         setLoading(false)
       })
   }, [])
+
+  useEffect(() => {
+    if (!loading) {
+      setTimeoutError(false)
+      return
+    }
+    const timer = setTimeout(() => {
+      if (loading) setTimeoutError(true)
+    }, 15000)
+    return () => clearTimeout(timer)
+  }, [loading])
+
+  const handleRetry = () => {
+    setTimeoutError(false)
+    setLoading(true)
+    fetch(`/api/football-matches?offset=0&limit=${limit}`)
+      .then(res => res.json())
+      .then(data => {
+        setMatches(data.matches || [])
+        setLeagues(data.leagues || [])
+        setHasMore((data.matches || []).length === limit)
+        setLoading(false)
+      })
+  }
 
   // Filtrar partidos por búsqueda, liga y status
   const filteredMatches = useMemo(() => {
@@ -67,6 +101,20 @@ export default function MatchesPage() {
       return searchMatch && leagueMatch && statusMatch
     })
   }, [matches, search, selectedLeague, leagues, statusFilter])
+
+  if (timeoutError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
+        <AlertTriangle className="h-12 w-12 text-yellow-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">No se pudo cargar la página</h2>
+        <p className="text-muted-foreground mb-6">La carga está tardando demasiado. Por favor, verifica tu conexión o inténtalo de nuevo.</p>
+        <button onClick={handleRetry} className="px-4 py-2 rounded bg-blue-600 text-white font-semibold flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Intentar nuevamente
+        </button>
+      </div>
+    )
+  }
 
   const handleVote = async (matchId: string, vote: 'local' | 'empate' | 'visitante') => {
     setVotes(prev => ({ ...prev, [matchId]: vote }))
@@ -102,6 +150,21 @@ export default function MatchesPage() {
         return newVotes
       })
     }
+  }
+
+  // Cargar más partidos
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    const nextOffset = offset + limit
+    fetch(`/api/football-matches?offset=${nextOffset}&limit=${limit}`)
+      .then(res => res.json())
+      .then(data => {
+        setMatches(prev => [...prev, ...(data.matches || [])])
+        setHasMore((data.matches || []).length === limit)
+        setOffset(nextOffset)
+      })
+      .finally(() => setLoadingMore(false))
   }
 
   return (
@@ -273,6 +336,15 @@ export default function MatchesPage() {
                   </div>
                 )
               })}
+              {hasMore && filteredMatches.length === matches.length && (
+                <button
+                  className={`mt-4 px-4 py-2 rounded bg-blue-600 text-white font-semibold disabled:opacity-50`}
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Cargando...' : 'Cargar más'}
+                </button>
+              )}
             </div>
           )}
         </div>

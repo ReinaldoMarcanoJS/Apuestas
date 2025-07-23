@@ -23,39 +23,53 @@ interface Notification {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
     const fetchNotifications = async () => {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      // Traer notificaciones y datos del usuario que generó la acción
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*, from_user:from_user_id (username, display_name, avatar_url)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        setNotifications(data);
-        // Marcar todas como leídas
-        await supabase
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+        // Traer notificaciones y datos del usuario que generó la acción
+        const { data, error } = await supabase
           .from('notifications')
-          .update({ is_read: true })
+          .select('*, from_user:from_user_id (username, display_name, avatar_url)')
           .eq('user_id', user.id)
-          .eq('is_read', false);
+          .order('created_at', { ascending: false });
+        if (error) {
+          console.error('Error fetching notifications:', error);
+          setNotifications([]);
+        } else if (data) {
+          setNotifications(data);
+          // Marcar todas como leídas
+          await supabase
+            .from('notifications')
+            .update({ is_read: true })
+            .eq('user_id', user.id)
+            .eq('is_read', false);
+        }
+      } catch (err) {
+        console.error('Error en fetchNotifications:', err);
+        setNotifications([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchNotifications();
   }, [supabase]);
 
   const handleDelete = async (id: string) => {
-    await supabase.from('notifications').delete().eq('id', id);
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setDeleting(id);
+    setTimeout(async () => {
+      await supabase.from('notifications').delete().eq('id', id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setDeleting(null);
+    }, 300); // Duración de la animación
   };
 
   const renderText = (n: Notification) => {
@@ -85,22 +99,33 @@ export default function NotificationsPage() {
       ) : (
         <ul className="space-y-4">
           {notifications.map((n) => (
-            <li key={n.id} className="flex items-center gap-4 bg-white rounded-lg shadow p-4">
-              <Link href={`/profile/${n.from_user?.username || ''}`} className="flex items-center gap-2">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={n.from_user?.avatar_url || ''} alt={n.from_user?.display_name || ''} />
-                  <AvatarFallback>{n.from_user?.display_name?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
-                </Avatar>
-                <span className="font-semibold">{n.from_user?.display_name || 'Alguien'}</span>
-              </Link>
-              <span className="flex-1 text-sm">
+            <li
+              key={n.id}
+              className={`relative flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 bg-white rounded-lg shadow p-4 pr-12 transition-opacity duration-300 ${deleting === n.id ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+            >
+              <div className="flex items-center gap-2">
+                <Link href={`/profile/${n.from_user?.username || ''}`} className="flex items-center gap-2">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={n.from_user?.avatar_url || ''} alt={n.from_user?.display_name || ''} />
+                    <AvatarFallback>{n.from_user?.display_name?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
+                  </Avatar>
+                  <span className="font-semibold">{n.from_user?.display_name || 'Alguien'}</span>
+                </Link>
+              </div>
+              <span className="text-sm flex-1 order-2 sm:order-none">
                 {renderText(n)}
                 {n.post_id && (
                   <Link href={`/post/${n.post_id}`} className="ml-1 underline text-blue-600">Ver publicación</Link>
                 )}
               </span>
-              <span className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString()}</span>
-              <Button variant="ghost" size="icon" onClick={() => handleDelete(n.id)} title="Eliminar notificación">
+              <span className="text-xs text-gray-400 order-3 sm:order-none sm:ml-2">{new Date(n.created_at).toLocaleString()}</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => handleDelete(n.id)} 
+                title="Eliminar notificación" 
+                className="absolute top-2 right-2"
+              >
                 ×
               </Button>
             </li>

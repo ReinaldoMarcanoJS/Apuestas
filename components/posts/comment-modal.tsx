@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Heart, MessageCircle } from 'lucide-react';
 import defaultAvatar from '@/public/default-avatar.png'; // Asegúrate de tener esta imagen en public/
-import { likeComment, unlikeComment, isCommentLiked, getCommentLikesCount, getCommentReplies, addCommentReply } from '@/lib/supabase/posts';
+import { likeComment, unlikeComment, isCommentLiked, getCommentLikesCount, getCommentReplies, addCommentReply, deleteComment, updateComment } from '@/lib/supabase/posts';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image'
@@ -74,6 +74,10 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
     const [commentLiked, setCommentLiked] = useState<{ [key: string]: boolean }>({});
     const [replies, setReplies] = useState<{ [key: string]: Comment[] }>({});
     const [replyLoading, setReplyLoading] = useState(false);
+    const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+    const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+    const [editContent, setEditContent] = useState('');
+    const [editError, setEditError] = useState('');
     const currentUserId = user?.id || null;
     // Estado para el carrusel de imágenes
     const [currentImg, setCurrentImg] = useState(initialImageIndex);
@@ -114,9 +118,12 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
       if (open) setCurrentImg(initialImageIndex);
     }, [initialImageIndex, open]);
 
+    const [commentList, setCommentList] = useState<Comment[]>(comments);
+    useEffect(() => { setCommentList(comments); }, [comments]);
+
     useEffect(() => {
         // Cargar likes y si el usuario ya le dio like a cada comentario
-        comments.forEach(async (comment) => {
+        commentList.forEach(async (comment) => {
             const [likes, liked] = await Promise.all([
                 getCommentLikesCount(comment.id),
                 currentUserId ? isCommentLiked(comment.id, currentUserId) : Promise.resolve(false)
@@ -127,7 +134,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
             const res: Comment[] = await getCommentReplies(comment.id);
             setReplies(prev => ({ ...prev, [comment.id]: res }));
         });
-    }, [comments, open, currentUserId]);
+    }, [commentList, open, currentUserId]);
 
     const handleLikeComment = async (commentId: string) => {
         if (!currentUserId) return;
@@ -163,6 +170,52 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
         setReplyLoading(false);
     };
 
+    const handleDeleteComment = async (commentId: string) => {
+        if (!currentUserId) return;
+        setDeletingCommentId(commentId);
+        setTimeout(async () => {
+          const ok = await deleteComment(commentId, currentUserId);
+          setDeletingCommentId(null);
+          if (ok) {
+              setCommentList(prev => prev.filter(c => c.id !== commentId));
+              // También eliminar de replies si es una reply
+              setReplies(prev => {
+                  const newReplies = { ...prev };
+                  Object.keys(newReplies).forEach(key => {
+                      newReplies[key] = newReplies[key].filter(r => r.id !== commentId);
+                  });
+                  return newReplies;
+              });
+          }
+        }, 300);
+    };
+
+    const handleEditComment = (commentId: string, content: string) => {
+      setEditingCommentId(commentId);
+      setEditContent(content);
+    };
+
+    const handleEditSubmit = async (e: React.FormEvent, commentId: string, isReply: boolean = false, parentId?: string) => {
+      e.preventDefault();
+      if (!editContent.trim() || !currentUserId) return;
+      setEditError('');
+      const ok = await updateComment(commentId, editContent, currentUserId);
+      if (!ok) {
+        setEditError('Error al actualizar el comentario.');
+        return;
+      }
+      if (isReply && parentId) {
+        setReplies(prev => ({
+          ...prev,
+          [parentId]: prev[parentId].map(r => r.id === commentId ? { ...r, content: editContent } : r)
+        }));
+      } else {
+        setCommentList(prev => prev.map(c => c.id === commentId ? { ...c, content: editContent } : c));
+      }
+      setEditingCommentId(null);
+      setEditContent('');
+    };
+
     if (!open) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -176,7 +229,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <Card className="w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <Card className="w-full max-w-lg sm:max-w-2xl lg:max-w-6xl max-h-[90vh] flex flex-col lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <span className="font-semibold">Comentarios</span>
                     <Button variant="ghost" size="sm" onClick={onClose}>&times;</Button>
@@ -251,9 +304,9 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                         </div>
                     )}
                     {/* Comentarios */}
-                    {comments.length === 0 && <p className="text-muted-foreground text-center">Sé el primero en comentar.</p>}
-                    {comments.map(comment => (
-                        <div key={comment.id} className="flex flex-col gap-1 mb-2">
+                    {commentList.length === 0 && <p className="text-muted-foreground text-center">Sé el primero en comentar.</p>}
+                    {commentList.map(comment => (
+                        <div key={comment.id} className={`flex flex-col gap-1 mb-2 transition-all duration-300 ${deletingCommentId === comment.id ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
                             <div className="flex items-start space-x-2">
                                 <Image
                                     src={comment.user.avatar_url || defaultAvatar.src}
@@ -271,7 +324,22 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                             </Link>
                                             <span className="text-muted-foreground">{formatRelativeDate(comment.created_at)}</span>
                                         </div>
-                                        <span className="text-sm whitespace-pre-wrap">{comment.content}</span>
+                                        <span className="text-sm whitespace-pre-wrap">
+                                          {editingCommentId === comment.id ? (
+                                            <form onSubmit={e => handleEditSubmit(e, comment.id)} className="flex items-center gap-2">
+                                              <Input
+                                                value={editContent}
+                                                onChange={e => setEditContent(e.target.value)}
+                                                className="flex-1"
+                                                maxLength={300}
+                                                autoFocus
+                                              />
+                                              <Button type="submit" size="sm" disabled={!editContent.trim()}>Guardar</Button>
+                                              <Button type="button" size="sm" variant="ghost" onClick={() => setEditingCommentId(null)}>Cancelar</Button>
+                                              {editError && <span className="text-xs text-red-500 ml-2">{editError}</span>}
+                                            </form>
+                                          ) : comment.content}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-3 mt-1">
                                         <button
@@ -286,6 +354,28 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                         >
                                             Responder
                                         </button>
+                                        {currentUserId && comment.user.username === user?.user_metadata?.username && (
+                                            <>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="ml-auto text-blue-500"
+                                                onClick={() => handleEditComment(comment.id, comment.content)}
+                                                disabled={deletingCommentId === comment.id}
+                                              >
+                                                Editar
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="ml-auto text-red-500"
+                                                onClick={() => handleDeleteComment(comment.id)}
+                                                disabled={deletingCommentId === comment.id}
+                                              >
+                                                {deletingCommentId === comment.id ? 'Eliminando...' : 'Eliminar'}
+                                              </Button>
+                                            </>
+                                        )}
                                     </div>
                                     {/* Input para responder */}
                                     {replyingTo === comment.id && (
@@ -308,7 +398,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                     {replies[comment.id] && replies[comment.id].length > 0 && (
                                         <div className="mt-2 ml-6 border-l pl-3 space-y-1">
                                             {replies[comment.id].map((reply) => (
-                                                <div key={reply.id} className="flex items-start space-x-2 text-xs">
+                                                <div key={reply.id} className={`flex items-start space-x-2 text-xs transition-all duration-300 ${deletingCommentId === reply.id ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
                                                     <Image
                                                         src={reply.user?.avatar_url || defaultAvatar.src}
                                                         alt={reply.user?.username}
@@ -323,8 +413,45 @@ export const CommentModal: React.FC<CommentModalProps> = ({ open, onClose, comme
                                                                 {reply.user?.username}
                                                             </Link>
                                                             <span className="text-muted-foreground">{formatRelativeDate(reply.created_at)}</span> <br />
+                                                            {currentUserId && reply.user?.username === user?.user_metadata?.username && (
+                                                              <>
+                                                                <Button
+                                                                  variant="ghost"
+                                                                  size="sm"
+                                                                  className="ml-auto text-blue-500"
+                                                                  onClick={() => handleEditComment(reply.id, reply.content)}
+                                                                  disabled={deletingCommentId === reply.id}
+                                                                >
+                                                                  Editar
+                                                                </Button>
+                                                                <Button
+                                                                  variant="ghost"
+                                                                  size="sm"
+                                                                  className="ml-auto text-red-500"
+                                                                  onClick={() => handleDeleteComment(reply.id)}
+                                                                  disabled={deletingCommentId === reply.id}
+                                                                >
+                                                                  {deletingCommentId === reply.id ? 'Eliminando...' : 'Eliminar'}
+                                                                </Button>
+                                                              </>
+                                                            )}
                                                         </div>
-                                                        <span className="text-sm">{reply.content}</span>
+                                                        <span className="text-sm">
+                                                          {editingCommentId === reply.id ? (
+                                                            <form onSubmit={e => handleEditSubmit(e, reply.id, true, comment.id)} className="flex items-center gap-2">
+                                                              <Input
+                                                                value={editContent}
+                                                                onChange={e => setEditContent(e.target.value)}
+                                                                className="flex-1"
+                                                                maxLength={300}
+                                                                autoFocus
+                                                              />
+                                                              <Button type="submit" size="sm" disabled={!editContent.trim()}>Guardar</Button>
+                                                              <Button type="button" size="sm" variant="ghost" onClick={() => setEditingCommentId(null)}>Cancelar</Button>
+                                                              {editError && <span className="text-xs text-red-500 ml-2">{editError}</span>}
+                                                            </form>
+                                                          ) : reply.content}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             ))}

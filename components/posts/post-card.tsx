@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Heart, MessageCircle, MoreHorizontal, Trash2, Edit } from 'lucide-react'
-import { likePost, unlikePost, isPostLiked, deletePost, getPostComments, addPostComment, getPostLikes } from '@/lib/supabase/posts'
+import { likePost, unlikePost, isPostLiked, deletePost, getPostComments, addPostComment, getPostLikes, updatePost } from '@/lib/supabase/posts'
 import Link from 'next/link'
 import {
   DropdownMenu,
@@ -55,6 +55,9 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
   const [showInlineCommentInput, setShowInlineCommentInput] = useState(false)
   const [inlineComment, setInlineComment] = useState("")
   const [inlineLoading, setInlineLoading] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editContent, setEditContent] = useState(post.content)
+  const [editError, setEditError] = useState('')
 
   // Estado para el carrusel de imágenes
   const [currentImg, setCurrentImg] = useState(0)
@@ -163,6 +166,32 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleEdit = () => {
+    setEditing(true)
+    setEditContent(post.content)
+    setEditError('')
+  }
+
+  const handleEditCancel = () => {
+    setEditing(false)
+    setEditContent(post.content)
+    setEditError('')
+  }
+
+  const handleEditSave = async () => {
+    if (!editContent.trim()) return
+    setIsLoading(true)
+    setEditError('')
+    const updated = await updatePost(post.id, { content: editContent })
+    setIsLoading(false)
+    if (!updated) {
+      setEditError('Error al actualizar el post')
+      return
+    }
+    setEditing(false)
+    if (onPostUpdated) onPostUpdated()
   }
 
   const formatDate = (dateString: string) => {
@@ -299,7 +328,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onPostUpdated?.()}>
+                <DropdownMenuItem onClick={handleEdit}>
                   <Edit className="h-4 w-4 mr-2" />
                   Editar
                 </DropdownMenuItem>
@@ -316,7 +345,29 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
       <CardContent className="space-y-4 p-0" onClick={handleOpenComments} style={{ cursor: 'pointer' }}>
         {/* Content */}
         <div className="space-y-3">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap px-3">{post.content}</p>
+          {editing ? (
+            <div className="flex flex-col gap-2 px-3">
+              <textarea
+                className="border rounded px-3 py-2 text-sm min-h-[60px]"
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                maxLength={1000}
+                disabled={isLoading}
+                autoFocus
+              />
+              {editError && <span className="text-xs text-red-500">{editError}</span>}
+              <div className="flex gap-2 mt-1">
+                <Button size="sm" onClick={handleEditSave} disabled={isLoading || !editContent.trim()}>
+                  Guardar
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleEditCancel} disabled={isLoading}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm leading-relaxed whitespace-pre-wrap px-3">{post.content}</p>
+          )}
           
           {/* Imagen o carrusel de imágenes */}
           {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
@@ -420,7 +471,7 @@ export function PostCard({ post, onPostDeleted, onPostUpdated }: PostCardProps) 
         {comments.length > 0 && (
           <div className="mt-3 space-y-2">
             {comments.slice(-2).map((comment) => (
-              <div key={comment.id} className="flex items-start space-x-2 text-sm">
+              <div key={comment.id} className="flex items-start space-x-2 text-sm mx-2">
                 <Avatar className="h-7 w-7">
                   <AvatarImage src={comment.user?.avatar_url || ''} alt={comment.user?.username || ''} />
                   <AvatarFallback>{comment.user?.username?.charAt(0).toUpperCase() || '?'}</AvatarFallback>

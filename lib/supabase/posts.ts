@@ -33,6 +33,7 @@ interface RawReply {
 }
 
 export async function getPosts(limit = 20, offset = 0): Promise<PostWithProfile[]> {
+  console.log('getPosts ejecutado', { limit, offset });
   const supabase = createClient()
   
   const { data: posts, error } = await supabase
@@ -64,11 +65,12 @@ export async function getPosts(limit = 20, offset = 0): Promise<PostWithProfile[
       post_comments: post.post_comments ? post.post_comments.length : 0
     }
   }))
-
+  console.log('postsWithProfiles:', postsWithProfiles)
   return postsWithProfiles
 }
 
 export async function getPostsByUser(userId: string, limit = 20, offset = 0): Promise<PostWithProfile[]> {
+  console.log('getPostsByUser ejecutado', { userId, limit, offset });
   const supabase = createClient()
   
   const { data: posts, error } = await supabase
@@ -514,4 +516,32 @@ export async function addCommentReply(parentCommentId: string, postId: string, u
       }
     })(),
   }
+} 
+
+export async function updateComment(commentId: string, content: string, userId: string): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('post_comments')
+    .update({ content })
+    .eq('id', commentId)
+    .eq('user_id', userId);
+  if (error) {
+    console.error('Error updating comment:', error);
+    return false;
+  }
+  return true;
+}
+
+export async function deleteComment(commentId: string, userId: string): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from('post_comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('user_id', userId);
+  if (error) {
+    console.error('Error deleting comment:', error);
+    return false;
+  }
+  return true;
 } 
